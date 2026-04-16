@@ -1,0 +1,148 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import CitySelector from "../components/CitySelector";
+import DestinationGrid from "../components/DestinationGrid";
+
+export default function Home() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [origin, setOrigin] = useState("");
+  const [dest,   setDest]   = useState("");
+  const [date,   setDate]   = useState("");
+  const [cabin,  setCabin]  = useState("ECONOMY");
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    const p = new URLSearchParams();
+    if (origin) p.set("origin",      origin);
+    if (dest)   p.set("destination", dest);
+    if (date)   p.set("flight_date", date);
+    p.set("cabin_class", cabin);
+    navigate(`/search?${p.toString()}`);
+  };
+
+  return (
+    <main>
+      {/* ── Hero ─────────────────────────────────────────────── */}
+      <section className="relative bg-hero-sky overflow-hidden">
+        {/* Avión SVG decorativo */}
+        <div className="absolute inset-0 flex items-center justify-end opacity-20 pointer-events-none">
+          <svg viewBox="0 0 200 80" className="w-3/4 max-w-2xl text-white fill-current" xmlns="http://www.w3.org/2000/svg">
+            <path d="M180,35 L20,10 L30,35 L20,60 L180,35 Z" />
+            <path d="M80,35 L50,15 L55,35 L50,55 Z" />
+            <path d="M110,35 L95,28 L97,35 L95,42 Z" />
+          </svg>
+        </div>
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-24 md:py-32">
+          <div className="max-w-xl">
+            <p className="text-brand-gold font-semibold text-sm uppercase tracking-widest mb-3">
+              Sistema Distribuido CP · 3 Nodos
+            </p>
+            <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight mb-4">
+              {t("hero.title")}
+            </h1>
+            <p className="text-white/70 text-lg mb-8">
+              {t("hero.subtitle")}
+            </p>
+            <button
+              onClick={() => document.getElementById("search-widget")?.scrollIntoView({ behavior: "smooth" })}
+              className="bg-brand-wine text-white font-semibold px-8 py-3 rounded-full hover:bg-brand-wine2 transition-colors"
+            >
+              Reservar ahora
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Widget de búsqueda ────────────────────────────────── */}
+      <section id="search-widget" className="max-w-5xl mx-auto px-4 sm:px-6 -mt-8 relative z-10">
+        <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+          <h2 className="text-lg font-bold text-gray-900 mb-5">Buscar vuelos</h2>
+          <form onSubmit={handleSearch}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              {/* Origen */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  {t("search.origin")}
+                </label>
+                <CitySelector value={origin} onChange={setOrigin} placeholder="Ciudad origen" />
+              </div>
+              {/* Destino */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  {t("search.destination")}
+                </label>
+                <CitySelector value={dest} onChange={setDest} placeholder="Ciudad destino" />
+              </div>
+              {/* Fecha */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  {t("search.date")}
+                </label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-wine"
+                />
+              </div>
+              {/* Clase */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  {t("search.class")}
+                </label>
+                <select
+                  value={cabin}
+                  onChange={(e) => setCabin(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-wine bg-white"
+                >
+                  <option value="ECONOMY">{t("search.economy")}</option>
+                  <option value="FIRST">{t("search.first")}</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="bg-brand-wine text-white font-semibold px-10 py-3 rounded-full hover:bg-brand-wine2 transition-colors text-sm"
+              >
+                {t("search.button")}
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      {/* ── Grid de destinos ──────────────────────────────────── */}
+      <DestinationGrid />
+
+      {/* ── Info sistema distribuido ──────────────────────────── */}
+      <section className="bg-brand-navy text-white py-14">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+          <div>
+            <div className="text-3xl font-bold text-brand-gold mb-2">CP</div>
+            <div className="font-semibold mb-1">Consistencia + Partición</div>
+            <div className="text-white/60 text-sm">Teorema CAP — disponibilidad sacrificada ante particiones de red</div>
+          </div>
+          <div>
+            <div className="text-3xl font-bold text-brand-gold mb-2">VC</div>
+            <div className="font-semibold mb-1">Relojes Vectoriales</div>
+            <div className="text-white/60 text-sm">Cada reserva lleva un vector {"{beijing, ukraine, lapaz}"} para orden causal</div>
+          </div>
+          <div>
+            <div className="text-3xl font-bold text-brand-gold mb-2">IKJ</div>
+            <div className="font-semibold mb-1">Identity Key Jumping</div>
+            <div className="text-white/60 text-sm">IDs únicos por nodo: 1B+ Pekín · 2B+ Ucrania · 3B+ La Paz</div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Footer ───────────────────────────────────────────── */}
+      <footer className="bg-brand-navy border-t border-white/10 text-white/50 text-xs text-center py-6">
+        © 2026 RafaelPabón Airlines · Sistema Distribuido CP · Relojes Vectoriales · IKJ
+      </footer>
+    </main>
+  );
+}

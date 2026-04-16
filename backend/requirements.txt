@@ -1,0 +1,27 @@
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+pydantic==2.7.1
+pydantic-settings==2.2.1
+
+# SQL Server
+pyodbc==5.1.0
+sqlalchemy==2.0.30
+
+# MongoDB
+pymongo[srv]==4.7.2
+motor==3.4.0
+
+# Geolocalización dinámica de proximidad a nodos
+geopy==2.4.1
+
+# Ingesta paralela de datos
+pandas==2.2.2
+
+# Utilidades
+python-dotenv==1.0.1
+httpx==0.27.0
+
+# Boarding pass PDF + QR
+fpdf2==2.7.9
+qrcode[pil]==7.4.2
+Pillow==10.3.0
