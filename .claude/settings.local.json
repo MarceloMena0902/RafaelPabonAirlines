@@ -8,7 +8,9 @@
       "Bash(py -3.12 --version)",
       "Bash(py -3.13 --version)",
       "Bash(py -0)",
-      "Bash(docker exec rpa_beijing *)"
+      "Bash(docker exec rpa_beijing *)",
+      "Bash(docker cp *)",
+      "Bash(docker exec *)"
     ]
   }
 }

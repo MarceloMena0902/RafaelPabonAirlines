@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import CitySelector from "../components/CitySelector";
 import DestinationGrid from "../components/DestinationGrid";
+import useNodeMap from "../hooks/useNodeMap";
+
+const NODE_LABELS = { beijing: "Pekín", ukraine: "Ucrania", lapaz: "La Paz" };
+const NODE_ICONS  = { beijing: "🇨🇳", ukraine: "🇺🇦", lapaz: "🇧🇴" };
 
 export default function Home() {
   const { t } = useTranslation();
@@ -11,6 +15,16 @@ export default function Home() {
   const [dest,   setDest]   = useState("");
   const [date,   setDate]   = useState("");
   const [cabin,  setCabin]  = useState("ECONOMY");
+  const { nodeMap, nodeStatus } = useNodeMap();
+
+  const nodeOf   = (code) => nodeMap[code];
+  const onlineOf = (code) => nodeStatus[nodeMap[code]];
+
+  // Nodos involucrados en la ruta seleccionada (pueden ser el mismo)
+  const involvedNodes = [...new Set([
+    origin && nodeOf(origin),
+    dest   && nodeOf(dest),
+  ].filter(Boolean))];
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -103,6 +117,36 @@ export default function Home() {
                 </select>
               </div>
             </div>
+            {/* Panel de nodos involucrados */}
+            {involvedNodes.length > 0 && (
+              <div className="flex items-center gap-3 py-3 px-4 bg-gray-50 rounded-xl border border-gray-100 mb-2">
+                <span className="text-xs text-gray-500 font-medium shrink-0">Nodos activos:</span>
+                <div className="flex gap-2 flex-wrap">
+                  {involvedNodes.map((node) => {
+                    const online = onlineOf(
+                      Object.keys(nodeMap).find((k) => nodeMap[k] === node)
+                    );
+                    return (
+                      <span
+                        key={node}
+                        className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border ${
+                          online === false
+                            ? "bg-red-50 border-red-200 text-red-700"
+                            : "bg-green-50 border-green-200 text-green-700"
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${online === false ? "bg-red-500" : "bg-green-500"}`} />
+                        {NODE_ICONS[node]} {NODE_LABELS[node]}
+                        <span className="font-normal opacity-70">
+                          {online === false ? "· CAÍDO" : "· online"}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end">
               <button
                 type="submit"
