@@ -1,0 +1,21 @@
+# Secretos
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Datasets grandes (>100 MB — compartir manualmente)
+backend/data/datasets/pasajeros.csv
+
+# Logs y temporales
+*.log
+.DS_Store
+Thumbs.db
