@@ -47,8 +47,12 @@ def generar_lote_pasajeros(cantidad):
         apellido = random.choice(cultura["apellidos"])
         nacionalidad = random.choice(cultura["nacionalidades"])
 
-        # Pasaporte: Código de región + número único
-        pasaporte = f"{region[:2].upper()}{random.randint(10000000, 99999999)}"
+        # Pasaporte: Prefijo único por región + número
+        _PREFIJOS = {
+            "LATAM": "LT", "EURO_ESTE": "EE",
+            "EURO_OESTE": "EW", "ORIENTE": "OR", "NORTE_AMERICA": "NA",
+        }
+        pasaporte = f"{_PREFIJOS[region]}{random.randint(10000000, 99999999)}"
         email = f"{nombre.lower()}.{apellido.lower()}{random.randint(100, 9999)}@airline-rp.com"
 
         lote.append([pasaporte, f"{nombre} {apellido}", nacionalidad, email])

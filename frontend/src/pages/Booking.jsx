@@ -12,7 +12,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getFlightById, getReservationsForFlight, createReservation, searchCities, getNearestNode } from "../api";
+import { getFlightById, getSeatsForFlight, createReservation, cancelReservation, searchCities, getNearestNode, getPassenger } from "../api";
 import SeatMap from "../components/SeatMap";
 
 // ── Aeronaves ─────────────────────────────────────────────────
@@ -84,7 +84,7 @@ export default function Booking() {
   const cabinClass = params.get("cabin") || "ECONOMY";
 
   const [flight,        setFlight]        = useState(null);
-  const [taken,         setTaken]         = useState([]);
+  const [seatMap,       setSeatMap]       = useState({});   // { seatId: { status, passport, name } }
   const [seat,          setSeat]          = useState(null);
   const [passport,      setPassport]      = useState("");
   const [paxName,       setPaxName]       = useState("");
@@ -103,15 +103,47 @@ export default function Booking() {
   const debounceRef = useRef(null);
   const cityDropRef = useRef(null);
 
+  const loadSeats = async () => {
+    const seats = await getSeatsForFlight(id);
+    const map = {};
+    seats.forEach(s => {
+      map[s.seat_number] = {
+        status:     s.status,
+        passport:   s.passenger_passport,
+        name:       s.passenger_name,
+        transaction_id: s.transaction_id,
+      };
+    });
+    setSeatMap(map);
+  };
+
   useEffect(() => {
-    Promise.all([getFlightById(id), getReservationsForFlight(id)])
-      .then(([fl, reservations]) => {
+    Promise.all([getFlightById(id), getSeatsForFlight(id)])
+      .then(([fl, seats]) => {
         setFlight(fl);
-        setTaken(reservations.map((r) => r.seat_number));
+        const map = {};
+        seats.forEach(s => {
+          map[s.seat_number] = {
+            status:   s.status,
+            passport: s.passenger_passport,
+            name:     s.passenger_name,
+            transaction_id: s.transaction_id,
+          };
+        });
+        setSeatMap(map);
       })
       .catch(() => setError({ type: "generic" }))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Lookup de pasajero por pasaporte (para autocompletar en el popup)
+  const lookupPassport = async (passport) => {
+    try {
+      return await getPassenger(passport);
+    } catch {
+      return null;
+    }
+  };
 
   const aircraft = flight ? aircraftFor(flight.aircraft_id) : null;
 
@@ -168,19 +200,18 @@ export default function Booking() {
     }
   };
 
-  const handleConfirm = async (e) => {
-    e.preventDefault();
-    if (!seat || !passport) return;
-    setSubmitting(true);
+  const handleBuy = async (seatId, passportVal, nameVal) => {
     setError(null);
     try {
       const res = await createReservation({
         flight_id:          parseInt(id),
-        passenger_passport: passport.toUpperCase(),
-        seat_number:        seat,
+        passenger_passport: passportVal,
+        seat_number:        seatId,
         cabin_class:        cabinClass,
+        status:             "CONFIRMED",
       });
       setResult(res);
+      await loadSeats();
     } catch (err) {
       if (err.response?.status === 503)
         setError({ type: "503", detail: err.response.data.detail });
@@ -188,8 +219,30 @@ export default function Booking() {
         setError({ type: "conflict", msg: err.response.data.detail });
       else
         setError({ type: "generic" });
-    } finally {
-      setSubmitting(false);
+      throw err; // re-throw so popup stays open
+    }
+  };
+
+  const handleReserve = async (seatId, passportVal, nameVal) => {
+    setError(null);
+    try {
+      const res = await createReservation({
+        flight_id:          parseInt(id),
+        passenger_passport: passportVal,
+        seat_number:        seatId,
+        cabin_class:        cabinClass,
+        status:             "RESERVED",
+      });
+      setResult(res);
+      await loadSeats();
+    } catch (err) {
+      if (err.response?.status === 503)
+        setError({ type: "503", detail: err.response.data.detail });
+      else if (err.response?.status === 409)
+        setError({ type: "conflict", msg: err.response.data.detail });
+      else
+        setError({ type: "generic" });
+      throw err;
     }
   };
 
@@ -384,95 +437,68 @@ export default function Booking() {
           </h3>
           <SeatMap
             aircraft={aircraft}
-            takenSeats={taken}
-            selectedSeat={seat}
+            seatMap={seatMap}
             cabinClass={cabinClass}
-            onSelect={setSeat}
+            onBuy={handleBuy}
+            onReserve={handleReserve}
+            lookupPassport={lookupPassport}
           />
         </div>
 
-        {/* Panel lateral con datos */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-5">
+        {/* Panel lateral informativo */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col gap-4">
 
-          {/* Detalle del asiento seleccionado */}
-          <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Asiento</span>
-              {seat && (
-                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                  taken.includes(seat) ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
-                }`}>
-                  {taken.includes(seat) ? t("booking.seat_taken") : t("booking.seat_free")}
-                </span>
-              )}
-            </div>
-            <div className="text-3xl font-bold text-brand-wine">
-              {seat || <span className="text-gray-300 text-xl">—</span>}
-            </div>
-            {seat && (
-              <div className="text-xs text-gray-500 mt-1">
-                {cabinClass === "FIRST" ? "Primera Clase" : "Clase Económica"}
-              </div>
-            )}
+          {/* Instrucción */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+            <p className="font-semibold mb-1">Cómo comprar</p>
+            <ol className="list-decimal list-inside space-y-1 text-xs">
+              <li>Haz clic en un asiento <span className="font-bold text-blue-500">azul</span> (libre)</li>
+              <li>Ingresa el número de pasaporte</li>
+              <li>El nombre se autocompleta si ya está registrado</li>
+              <li>Presiona <span className="font-bold text-green-600">Comprar</span> o <span className="font-bold text-amber-600">Reservar</span></li>
+            </ol>
           </div>
 
-          {/* Formulario */}
-          <form onSubmit={handleConfirm} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t("booking.passenger")} *
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="Ej: LA28169216"
-                value={passport}
-                onChange={(e) => setPassport(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-wine font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t("booking.pax_name")}
-              </label>
-              <input
-                type="text"
-                placeholder="Nombre completo"
-                value={paxName}
-                onChange={(e) => setPaxName(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-wine"
-              />
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
-                {error.type === "503" ? t("error.503") : error.msg || t("error.generic")}
+          {/* Estadísticas del vuelo */}
+          {flight && (
+            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 text-xs space-y-2">
+              <p className="font-bold text-gray-600 uppercase tracking-wider mb-2">Disponibilidad</p>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Economía libres</span>
+                <span className="font-semibold text-gray-800">{flight.available_economy}</span>
               </div>
-            )}
+              <div className="flex justify-between">
+                <span className="text-gray-500">Primera libres</span>
+                <span className="font-semibold text-gray-800">{flight.available_first}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Asientos vendidos</span>
+                <span className="font-semibold text-green-600">
+                  {Object.values(seatMap).filter(s => s.status === "CONFIRMED").length}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Reservados</span>
+                <span className="font-semibold text-amber-600">
+                  {Object.values(seatMap).filter(s => s.status === "RESERVED").length}
+                </span>
+              </div>
+            </div>
+          )}
 
-            {!seat && (
-              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                Selecciona un asiento en el mapa de cabina
-              </p>
-            )}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+              {error.type === "503" ? t("error.503") : error.msg || t("error.generic")}
+            </div>
+          )}
 
-            <button
-              type="submit"
-              disabled={!seat || !passport || submitting}
-              className="w-full bg-brand-wine text-white py-3 rounded-full font-semibold hover:bg-brand-wine2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {submitting ? "Procesando..." : t("booking.confirm")}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="w-full text-gray-500 text-sm hover:text-gray-700 transition-colors py-1"
-            >
-              {t("booking.cancel")}
-            </button>
-          </form>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="w-full text-gray-500 text-sm hover:text-gray-700 transition-colors py-2 border border-gray-200 rounded-xl"
+          >
+            {t("booking.cancel")}
+          </button>
         </div>
       </div>
     </div>

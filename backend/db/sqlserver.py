@@ -165,6 +165,26 @@ def get_reservations_for_flight(node: str, flight_id: int) -> list[dict]:
         return [dict(zip(cols, row)) for row in cursor.fetchall()]
 
 
+def get_seats_for_flight(node: str, flight_id: int) -> list[dict]:
+    """
+    Devuelve todos los asientos ocupados (CONFIRMED o RESERVED) de un vuelo,
+    incluyendo nombre del pasajero (JOIN con passengers).
+    """
+    sql = """
+        SELECT r.seat_number, r.status, r.cabin_class,
+               r.passenger_passport, r.transaction_id,
+               p.full_name AS passenger_name
+        FROM   dbo.reservations r
+        LEFT JOIN dbo.passengers p ON p.passport = r.passenger_passport
+        WHERE  r.flight_id = ?
+          AND  r.status IN ('CONFIRMED', 'RESERVED')
+    """
+    with get_conn(node) as conn:
+        cursor = conn.execute(sql, flight_id)
+        cols = [col[0] for col in cursor.description]
+        return [dict(zip(cols, row)) for row in cursor.fetchall()]
+
+
 def get_reservation_by_transaction_id(node: str, transaction_id: str) -> dict | None:
     with get_conn(node) as conn:
         cursor = conn.execute(

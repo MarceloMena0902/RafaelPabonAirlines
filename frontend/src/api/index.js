@@ -12,6 +12,7 @@ export const getLiveFlights   = ()       => api.get("/flights/live").then(r => r
 export const createReservation = (data)  => api.post("/reservations/", data).then(r => r.data);
 export const cancelReservation = (data)  => api.delete("/reservations/", { data }).then(r => r.data);
 export const getReservationsForFlight = (id) => api.get(`/reservations/flight/${id}`).then(r => r.data);
+export const getSeatsForFlight        = (id) => api.get(`/reservations/flight/${id}/seats`).then(r => r.data);
 export const getPassenger     = (passport) => api.get(`/passengers/${passport}`).then(r => r.data);
 
 export default api;

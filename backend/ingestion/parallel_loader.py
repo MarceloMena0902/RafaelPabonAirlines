@@ -1,9 +1,9 @@
 """
-ingestion/parallel_loader.py  —  v4  (optimizado)
-──────────────────────────────────────────────────
+ingestion/parallel_loader.py  —  v5  (optimizado + pasos separados)
+─────────────────────────────────────────────────────────────────────
 Carga 60 000 vuelos y 5 000 000 pasajeros a los 3 nodos.
 
-Optimizaciones vs v3:
+Optimizaciones:
   • Escritura a los 3 nodos EN PARALELO por cada chunk (3x más rápido).
   • Índices SQL deshabilitados durante la carga, reconstruidos al final.
   • Conexiones persistentes por nodo (sin abrir/cerrar por chunk).
@@ -13,12 +13,19 @@ Optimizaciones vs v3:
 
 Uso
 ────
-  # Dentro del contenedor rpa_backend:
-  python -m ingestion.parallel_loader
-  python -m ingestion.parallel_loader --reset
+  # Solo vuelos (luego verificar con --verify antes de pasajeros):
+  python -m ingestion.parallel_loader --local --flights-only
 
-  # Desde Windows contra los contenedores expuestos:
+  # Verificar conteos en los 3 nodos:
+  python -m ingestion.parallel_loader --local --verify
+
+  # Solo pasajeros (después de verificar vuelos):
+  python -m ingestion.parallel_loader --local --passengers-only
+
+  # Todo en un paso (comportamiento original):
   python -m ingestion.parallel_loader --local
+
+  # Con reset previo:
   python -m ingestion.parallel_loader --local --reset
 
   # Con ruta explícita de CSVs:
@@ -171,12 +178,36 @@ _SQL_PASSENGERS = """
     VALUES (?,?,?,?,?)
 """
 
+# Versión idempotente: salta si el pasaporte ya existe (para re-runs y reparaciones)
+_SQL_PASSENGERS_UPSERT = """
+    INSERT INTO dbo.passengers (passport, full_name, nationality, email, home_region)
+    SELECT ?,?,?,?,?
+    WHERE NOT EXISTS (SELECT 1 FROM dbo.passengers WHERE passport = ?)
+"""
+
 
 def _sql_bulk(conn: pyodbc.Connection, sql: str, rows: list[tuple]) -> None:
     cur = conn.cursor()
     cur.fast_executemany = True
     cur.executemany(sql, rows)
     conn.commit()
+
+
+def _sql_bulk_passengers_safe(conn: pyodbc.Connection, rows: list[tuple]) -> int:
+    """
+    INSERT idempotente para pasajeros: salta los que ya existen.
+    rows: (passport, full_name, nationality, email, home_region)
+    Retorna el número de filas efectivamente insertadas.
+    """
+    # El parámetro de passport va duplicado: una vez para INSERT y otra para WHERE NOT EXISTS
+    rows_ext = [(r[0], r[1], r[2], r[3], r[4], r[0]) for r in rows]
+    cur = conn.cursor()
+    # fast_executemany=False para procesar fila a fila (necesario con subquery)
+    cur.fast_executemany = False
+    cur.executemany(_SQL_PASSENGERS_UPSERT, rows_ext)
+    inserted = cur.rowcount  # -1 si el driver no reporta, ≥0 en la mayoría de los casos
+    conn.commit()
+    return max(inserted, 0)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -319,6 +350,7 @@ def _write_passengers_parallel(
 ) -> int:
     """
     Escribe un chunk de pasajeros a los 3 nodos simultáneamente.
+    Usa INSERT idempotente (WHERE NOT EXISTS) → seguro re-ejecutar.
     Usa semáforo global para limitar chunks en vuelo.
     """
     with _PAX_SEM:
@@ -327,7 +359,7 @@ def _write_passengers_parallel(
         def write_bej():
             try:
                 conn = _sql_conn(bej_host, bej_port)
-                _sql_bulk(conn, _SQL_PASSENGERS, sql_rows)
+                _sql_bulk_passengers_safe(conn, sql_rows)
                 conn.close()
             except Exception as e:
                 errors.append(f"beijing: {e}")
@@ -335,7 +367,7 @@ def _write_passengers_parallel(
         def write_ukr():
             try:
                 conn = _sql_conn(ukr_host, ukr_port)
-                _sql_bulk(conn, _SQL_PASSENGERS, sql_rows)
+                _sql_bulk_passengers_safe(conn, sql_rows)
                 conn.close()
             except Exception as e:
                 errors.append(f"ukraine: {e}")
@@ -343,7 +375,11 @@ def _write_passengers_parallel(
         def write_mongo():
             try:
                 cli, db = _mongo_db()
-                db.passengers.insert_many(mongo_docs, ordered=False)
+                # ordered=False → continúa ante duplicados (DuplicateKeyError)
+                try:
+                    db.passengers.insert_many(mongo_docs, ordered=False)
+                except Exception:
+                    pass  # ignora duplicados en Mongo
                 cli.close()
             except Exception as e:
                 errors.append(f"lapaz: {e}")
@@ -576,16 +612,103 @@ def reset_all_nodes() -> None:
 
 
 # ══════════════════════════════════════════════════════════════
+#  Verificación de conteos en los 3 nodos
+# ══════════════════════════════════════════════════════════════
+
+def verify_counts(bej_host: str, bej_port: int, ukr_host: str, ukr_port: int) -> None:
+    """Imprime conteos de flights, passengers y reservations en los 3 nodos."""
+    logger.info("=== Verificando conteos en los 3 nodos ===")
+
+    tables = ["flights", "passengers", "reservations"]
+
+    def _count_sql(node: str, host: str, port: int) -> dict:
+        counts = {}
+        try:
+            conn = _sql_conn(host, port)
+            cur  = conn.cursor()
+            for tbl in tables:
+                cur.execute(f"SELECT COUNT(*) FROM dbo.{tbl}")
+                counts[tbl] = cur.fetchone()[0]
+            # Muestra de 3 vuelos
+            cur.execute(
+                "SELECT TOP 3 id, origin, destination, flight_date, status "
+                "FROM dbo.flights ORDER BY id"
+            )
+            counts["_sample"] = cur.fetchall()
+            conn.close()
+        except Exception as e:
+            counts["_error"] = str(e)
+        return counts
+
+    def _count_mongo() -> dict:
+        counts = {}
+        try:
+            cli, db = _mongo_db()
+            for tbl in tables:
+                counts[tbl] = db[tbl].count_documents({})
+            counts["_sample"] = list(db.flights.find(
+                {}, {"_id": 0, "id": 1, "origin": 1, "destination": 1,
+                     "flight_date": 1, "status": 1}
+            ).sort("id", 1).limit(3))
+            cli.close()
+        except Exception as e:
+            counts["_error"] = str(e)
+        return counts
+
+    results = {}
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        futures = {
+            ex.submit(_count_sql, "beijing", bej_host, bej_port): "beijing",
+            ex.submit(_count_sql, "ukraine", ukr_host, ukr_port): "ukraine",
+            ex.submit(_count_mongo):                               "lapaz",
+        }
+        for f in as_completed(futures):
+            node = futures[f]
+            results[node] = f.result()
+
+    print("\n┌─────────────────────────────────────────────────────────────┐")
+    print("│            VERIFICACIÓN DE DATOS — 3 NODOS                  │")
+    print("├──────────────┬──────────────┬──────────────┬────────────────┤")
+    print("│ Tabla        │    Beijing   │   Ukraine    │    La Paz      │")
+    print("├──────────────┼──────────────┼──────────────┼────────────────┤")
+    for tbl in tables:
+        bej = results.get("beijing", {}).get(tbl, "ERR")
+        ukr = results.get("ukraine", {}).get(tbl, "ERR")
+        lpz = results.get("lapaz",   {}).get(tbl, "ERR")
+        ok  = "✓" if bej == ukr == lpz else "✗ DIFF"
+        print(f"│ {tbl:<12} │ {str(bej):>12} │ {str(ukr):>12} │ {str(lpz):>14} │  {ok}")
+    print("└──────────────┴──────────────┴──────────────┴────────────────┘")
+
+    # Muestra de vuelos
+    sample = results.get("beijing", {}).get("_sample", [])
+    if sample:
+        print("\nMuestra de vuelos (Beijing):")
+        for row in sample:
+            print(f"  id={row[0]}  {row[1]} → {row[2]}  fecha={row[3]}  estado={row[4]}")
+
+    # Errores
+    for node, data in results.items():
+        if "_error" in data:
+            logger.error("[%s] %s", node, data["_error"])
+
+    print()
+    logger.info("=== Verificación completada ===")
+
+
+# ══════════════════════════════════════════════════════════════
 #  Entry point
 # ══════════════════════════════════════════════════════════════
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Ingesta RafaelPabonAirlines v4")
-    parser.add_argument("--reset",   action="store_true", help="DROP + RECREATE antes de cargar")
-    parser.add_argument("--yes",     action="store_true", help="Omite confirmación del reset")
-    parser.add_argument("--local",   action="store_true", help="Conecta a localhost en vez de hostnames Docker")
-    parser.add_argument("--path",    metavar="DIR", default=None, help="Ruta a vuelos.csv / pasajeros.csv")
-    parser.add_argument("--workers", type=int, default=4, help="Chunks de pasajeros en paralelo (default: 4)")
+    parser = argparse.ArgumentParser(description="Ingesta RafaelPabonAirlines v5")
+    parser.add_argument("--reset",           action="store_true", help="DROP + RECREATE antes de cargar")
+    parser.add_argument("--yes",             action="store_true", help="Omite confirmación del reset")
+    parser.add_argument("--local",           action="store_true", help="Conecta a localhost en vez de hostnames Docker")
+    parser.add_argument("--path",            metavar="DIR", default=None, help="Ruta a vuelos.csv / pasajeros.csv")
+    parser.add_argument("--workers",         type=int, default=4, help="Chunks de pasajeros en paralelo (default: 4)")
+    parser.add_argument("--flights-only",    action="store_true", help="Solo carga vuelos (sin pasajeros)")
+    parser.add_argument("--passengers-only", action="store_true", help="Solo carga pasajeros (vuelos ya cargados)")
+    parser.add_argument("--verify",          action="store_true", help="Muestra conteos en los 3 nodos y sale")
     args = parser.parse_args()
 
     if args.local:
@@ -597,6 +720,11 @@ def main() -> None:
         bej_port = settings.sql_beijing_port
         ukr_host = settings.sql_ukraine_host
         ukr_port = settings.sql_ukraine_port
+
+    # ── Solo verificar ──────────────────────────────────────────
+    if args.verify:
+        verify_counts(bej_host, bej_port, ukr_host, ukr_port)
+        return
 
     datasets_path = _find_datasets_path(args.path)
 
@@ -612,10 +740,26 @@ def main() -> None:
         reset_all_nodes()
 
     t0 = time.time()
-    logger.info("=== Iniciando ingesta (escritura paralela a 3 nodos) ===")
 
-    load_flights(datasets_path, bej_host, bej_port, ukr_host, ukr_port)
-    load_passengers(datasets_path, bej_host, bej_port, ukr_host, ukr_port)
+    do_flights    = not args.passengers_only
+    do_passengers = not args.flights_only
+
+    if do_flights and do_passengers:
+        logger.info("=== Ingesta completa: vuelos + pasajeros ===")
+    elif do_flights:
+        logger.info("=== Cargando solo vuelos ===")
+    else:
+        logger.info("=== Cargando solo pasajeros ===")
+
+    if do_flights:
+        load_flights(datasets_path, bej_host, bej_port, ukr_host, ukr_port)
+        if do_passengers:
+            logger.info("Vuelos listos. Iniciando carga de pasajeros...")
+        else:
+            logger.info("Vuelos cargados. Usa --verify para comprobar, luego --passengers-only.")
+
+    if do_passengers:
+        load_passengers(datasets_path, bej_host, bej_port, ukr_host, ukr_port)
 
     elapsed = time.time() - t0
     logger.info("=== Ingesta completa en %.0f segundos (%.1f min) ===",

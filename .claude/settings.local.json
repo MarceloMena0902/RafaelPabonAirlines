@@ -37,7 +37,9 @@
       "Bash(docker build *)",
       "Bash(docker-compose -f \"E:/ISI trabajos/7moSem/Sistemas Distribuidos/Practica3/docker-compose.yml\" up -d --no-build rpa_backend rpa_frontend)",
       "Bash(xargs grep *)",
-      "Bash(docker-compose -f \"E:/ISI trabajos/7moSem/Sistemas Distribuidos/Practica3/docker-compose.yml\" up -d --no-build rpa_backend)"
+      "Bash(docker-compose -f \"E:/ISI trabajos/7moSem/Sistemas Distribuidos/Practica3/docker-compose.yml\" up -d --no-build rpa_backend)",
+      "Bash(docker compose *)",
+      "Bash(echo \"Iniciado en background, PID=$!\")"
     ]
   }
 }

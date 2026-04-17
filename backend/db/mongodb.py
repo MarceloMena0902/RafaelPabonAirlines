@@ -116,6 +116,35 @@ async def get_reservations_for_flight(flight_id: int) -> list[dict]:
     return await cursor.to_list(length=None)
 
 
+async def get_seats_for_flight(flight_id: int) -> list[dict]:
+    """
+    Devuelve todos los asientos ocupados (CONFIRMED o RESERVED) de un vuelo,
+    incluyendo nombre del pasajero via $lookup a la colección passengers.
+    """
+    db = get_async_db()
+    pipeline = [
+        {"$match": {"flight_id": flight_id, "status": {"$in": ["CONFIRMED", "RESERVED"]}}},
+        {"$lookup": {
+            "from": "passengers",
+            "localField": "passenger_passport",
+            "foreignField": "passport",
+            "as": "pax",
+        }},
+        {"$project": {
+            "_id": 0,
+            "seat_number": 1,
+            "status": 1,
+            "cabin_class": 1,
+            "passenger_passport": 1,
+            "transaction_id": 1,
+            "passenger_name": {
+                "$ifNull": [{"$arrayElemAt": ["$pax.full_name", 0]}, None]
+            },
+        }},
+    ]
+    return await db.reservations.aggregate(pipeline).to_list(length=None)
+
+
 async def get_reservation_by_transaction_id(transaction_id: str) -> dict | None:
     db = get_async_db()
     doc = await db.reservations.find_one({"transaction_id": transaction_id}, {"_id": 0})

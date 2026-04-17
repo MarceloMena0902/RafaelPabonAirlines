@@ -117,3 +117,22 @@ async def get_reservations_for_flight(flight_id: int):
     if node_states["lapaz"].is_online:
         return await mongodb.get_reservations_for_flight(flight_id)
     raise HTTPException(status_code=503, detail="Sin nodos disponibles.")
+
+
+@router.get("/flight/{flight_id}/seats")
+async def get_seats_for_flight(flight_id: int):
+    """
+    Devuelve todos los asientos con estado CONFIRMED o RESERVED,
+    incluyendo datos del pasajero (passport + nombre completo).
+    Respuesta: lista de { seat_number, status, cabin_class,
+                          passenger_passport, passenger_name, transaction_id }
+    """
+    for node in ("beijing", "ukraine"):
+        if node_states[node].is_online:
+            try:
+                return await asyncio.to_thread(sqlserver.get_seats_for_flight, node, flight_id)
+            except Exception:
+                pass
+    if node_states["lapaz"].is_online:
+        return await mongodb.get_seats_for_flight(flight_id)
+    raise HTTPException(status_code=503, detail="Sin nodos disponibles.")

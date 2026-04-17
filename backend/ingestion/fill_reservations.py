@@ -197,7 +197,8 @@ def _build_rows_for_flight(flight, passport_pool, id_start):
     vec = '{"beijing":1,"ukraine":1,"lapaz":1}'
 
     def add(seat, cabin, status, price):
-        pax = passport_pool[id_start % pool_len]  # wrap-around
+        # Cada asiento recibe un pasajero distinto rotando el pool
+        pax = passport_pool[(id_start + len(rows)) % pool_len]
         txn = f"FILL-{uuid.uuid4().hex[:12].upper()}"
         rows.append((id_start + len(rows), txn, fid, pax, seat, cabin, status, price, node_own, vec))
 
