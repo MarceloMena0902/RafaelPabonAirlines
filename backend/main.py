@@ -21,7 +21,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import flights, reservations, passengers, nodes, tickets
+from routers import flights, reservations, passengers, nodes, tickets, routes
 from sync.synchronizer import run_sync_loop, check_node_health
 
 logging.basicConfig(
@@ -81,6 +81,7 @@ app.include_router(reservations.router)
 app.include_router(passengers.router)
 app.include_router(nodes.router)
 app.include_router(tickets.router)
+app.include_router(routes.router)
 
 
 @app.get("/", tags=["Health"])

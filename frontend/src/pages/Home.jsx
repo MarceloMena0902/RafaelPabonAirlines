@@ -11,10 +11,12 @@ const NODE_ICONS  = { beijing: "🇨🇳", ukraine: "🇺🇦", lapaz: "🇧🇴
 export default function Home() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [origin, setOrigin] = useState("");
-  const [dest,   setDest]   = useState("");
-  const [date,   setDate]   = useState("");
-  const [cabin,  setCabin]  = useState("ECONOMY");
+  const [origin,     setOrigin]     = useState("");
+  const [dest,       setDest]       = useState("");
+  const [date,       setDate]       = useState("");
+  const [returnDate, setReturnDate] = useState("");
+  const [cabin,      setCabin]      = useState("ECONOMY");
+  const [tripType,   setTripType]   = useState("oneway");
   const { nodeMap, nodeStatus } = useNodeMap();
 
   const nodeOf   = (code) => nodeMap[code];
@@ -33,6 +35,8 @@ export default function Home() {
     if (dest)   p.set("destination", dest);
     if (date)   p.set("flight_date", date);
     p.set("cabin_class", cabin);
+    p.set("trip_type", tripType);
+    if (tripType === "roundtrip" && returnDate) p.set("return_date", returnDate);
     navigate(`/search?${p.toString()}`);
   };
 
@@ -73,9 +77,24 @@ export default function Home() {
       {/* ── Widget de búsqueda ────────────────────────────────── */}
       <section id="search-widget" className="max-w-5xl mx-auto px-4 sm:px-6 -mt-8 relative z-10">
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900 mb-5">Buscar vuelos</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Buscar vuelos</h2>
+
+          {/* Toggle tipo de viaje */}
+          <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-5 w-fit">
+            {[["oneway","Solo ida"],["roundtrip","Ida y vuelta"]].map(([val, label]) => (
+              <button
+                key={val} type="button"
+                onClick={() => setTripType(val)}
+                className={`px-5 py-1.5 rounded-lg text-sm font-medium transition-all
+                  ${tripType === val ? "bg-brand-wine text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <form onSubmit={handleSearch}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 ${tripType === "roundtrip" ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
               {/* Origen */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
@@ -90,10 +109,10 @@ export default function Home() {
                 </label>
                 <CitySelector value={dest} onChange={setDest} placeholder="Ciudad destino" />
               </div>
-              {/* Fecha */}
+              {/* Fecha ida */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                  {t("search.date")}
+                  {tripType === "roundtrip" ? "Fecha ida" : t("search.date")}
                 </label>
                 <input
                   type="date"
@@ -102,6 +121,21 @@ export default function Home() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-wine"
                 />
               </div>
+              {/* Fecha regreso (solo ida y vuelta) */}
+              {tripType === "roundtrip" && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                    Fecha regreso
+                  </label>
+                  <input
+                    type="date"
+                    value={returnDate}
+                    min={date || undefined}
+                    onChange={(e) => setReturnDate(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-wine"
+                  />
+                </div>
+              )}
               {/* Clase */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">

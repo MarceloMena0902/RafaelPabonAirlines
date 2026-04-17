@@ -43,6 +43,11 @@ TABLES = [
     ("Reservas_Detalle",        "vw_reservas_detalle"),
     ("Reservas_por_Nodo",       "vw_reservas_por_nodo"),
     ("Ingresos_por_Ruta",       "vw_ingresos_por_ruta"),
+    # Nuevas — Dashboard puntos 4 y 5
+    ("Ubicacion_Compra",        "vw_ubicacion_compra"),
+    ("Flota_Disponibilidad",    "vw_flota_disponibilidad"),
+    ("Pasajeros_Lista",         "vw_pasajeros_lista"),
+    ("Rutas_Mas_Solicitadas",   "vw_rutas_mas_solicitadas"),
 ]
 
 # ── Esquema del modelo de datos (Tabular) ────────────────────
@@ -100,6 +105,7 @@ def build_layout() -> dict:
         _page_vuelos(),
         _page_pasajeros(),
         _page_reservas(),
+        _page_geografia_flota(),
     ]
     return {
         "id":      "RafaelPabonAirlines",
@@ -226,6 +232,37 @@ def _page_pasajeros() -> dict:
             _visual_donut(20,  20, 580, 340, "Pasajeros por Región",       "Pasajeros_Region",       "Region",       "Total_Pasajeros"),
             _visual_bar(640,  20, 600, 340, "Pasajeros por Nacionalidad",  "Pasajeros_Nacionalidad", "Nacionalidad", "Total_Pasajeros"),
             _visual_bar(20,  390, 1180,290, "Distribución por Región",     "Pasajeros_Region",       "Region",       "Total_Pasajeros"),
+        ]
+    }
+
+
+def _page_geografia_flota() -> dict:
+    """
+    Página 5: Geografía de Compras y Gestión de Flota
+    Cubre puntos 4 y 5 del dashboard de empresa:
+      • Ubicación de compra (nodo origen)
+      • Rutas más solicitadas
+      • Disponibilidad de flota por modelo
+      • Lista de pasajeros (tabla)
+    """
+    return {
+        "name":        "GeoFlota",
+        "displayName": "🌍 Geografía y Flota",
+        "width": 1280, "height": 720,
+        "visuals": [
+            # Punto 4 — Ubicación de compra
+            _visual_donut(20,  20, 360, 280, "Compras por Región",
+                          "Ubicacion_Compra", "Region_Compra", "Total_Compras"),
+            _visual_bar(400,  20, 480, 280, "Ingresos por Ciudad de Compra",
+                        "Ubicacion_Compra", "Ciudad_Compra", "Ingresos_Totales"),
+            _visual_bar(900,  20, 360, 280, "Top Rutas más Solicitadas",
+                        "Rutas_Mas_Solicitadas", "Ruta", "Total_Reservas"),
+
+            # Punto 5 — Flota y pasajeros
+            _visual_bar(20,  340, 580, 340, "Disponibilidad de Flota por Modelo",
+                        "Flota_Disponibilidad", "Modelo", "Total_Disponibles"),
+            _visual_bar(620, 340, 640, 340, "Ocupación de Flota (%)",
+                        "Flota_Disponibilidad", "Modelo", "Ocupacion_Eco_Pct"),
         ]
     }
 

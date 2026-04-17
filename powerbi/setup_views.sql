@@ -159,5 +159,95 @@ FROM dbo.reservations
 GROUP BY node_origin, cabin_class, status;
 GO
 
-PRINT 'Vistas Power BI creadas correctamente en rpa_db.';
+-- ── 11. Ubicación de compra (nodo origen → ciudad) ──────────
+IF OBJECT_ID('dbo.vw_ubicacion_compra', 'V') IS NOT NULL
+    DROP VIEW dbo.vw_ubicacion_compra;
+GO
+CREATE VIEW dbo.vw_ubicacion_compra AS
+SELECT
+    r.node_origin                                       AS Nodo,
+    CASE r.node_origin
+        WHEN 'beijing' THEN 'Pekín, China'
+        WHEN 'ukraine' THEN 'Kyiv, Ucrania'
+        WHEN 'lapaz'   THEN 'La Paz, Bolivia'
+        ELSE r.node_origin
+    END                                                 AS Ciudad_Compra,
+    CASE r.node_origin
+        WHEN 'beijing' THEN 'Asia-Pacífico'
+        WHEN 'ukraine' THEN 'Europa-África'
+        WHEN 'lapaz'   THEN 'Américas'
+        ELSE 'Desconocido'
+    END                                                 AS Region_Compra,
+    r.cabin_class                                       AS Clase,
+    COUNT(*)                                            AS Total_Compras,
+    SUM(r.price_paid)                                   AS Ingresos_Totales,
+    AVG(r.price_paid)                                   AS Precio_Promedio,
+    f.origin + ' → ' + f.destination                   AS Ruta
+FROM dbo.reservations r
+JOIN dbo.flights f ON r.flight_id = f.id
+WHERE r.status = 'CONFIRMED'
+GROUP BY r.node_origin, r.cabin_class, f.origin, f.destination;
+GO
+
+-- ── 12. Disponibilidad de flota por modelo ───────────────────
+IF OBJECT_ID('dbo.vw_flota_disponibilidad', 'V') IS NOT NULL
+    DROP VIEW dbo.vw_flota_disponibilidad;
+GO
+CREATE VIEW dbo.vw_flota_disponibilidad AS
+SELECT
+    a.type_code                                         AS Modelo,
+    a.first_seats                                       AS Cap_Primera,
+    a.eco_seats                                         AS Cap_Economica,
+    a.first_seats + a.eco_seats                         AS Cap_Total,
+    COUNT(f.id)                                         AS Vuelos_Asignados,
+    SUM(f.available_economy)                            AS Eco_Disponibles,
+    SUM(f.available_first)                              AS Primera_Disponibles,
+    SUM(f.available_economy + f.available_first)        AS Total_Disponibles,
+    SUM(a.eco_seats   - f.available_economy)            AS Eco_Ocupados,
+    SUM(a.first_seats - f.available_first)              AS Primera_Ocupados,
+    CASE WHEN COUNT(f.id) = 0 THEN 0
+         ELSE CAST(SUM(a.eco_seats - f.available_economy) * 100.0
+              / NULLIF(SUM(a.eco_seats), 0) AS DECIMAL(5,1))
+    END                                                 AS Ocupacion_Eco_Pct
+FROM dbo.aircrafts a
+LEFT JOIN dbo.flights f ON f.aircraft_id = a.id
+GROUP BY a.id, a.type_code, a.first_seats, a.eco_seats;
+GO
+
+-- ── 13. Lista de pasajeros (para autocompletar) ──────────────
+IF OBJECT_ID('dbo.vw_pasajeros_lista', 'V') IS NOT NULL
+    DROP VIEW dbo.vw_pasajeros_lista;
+GO
+CREATE VIEW dbo.vw_pasajeros_lista AS
+SELECT
+    passport        AS Pasaporte,
+    full_name       AS Nombre_Completo,
+    nationality     AS Nacionalidad,
+    home_region     AS Region,
+    email           AS Email,
+    created_at      AS Fecha_Registro
+FROM dbo.passengers;
+GO
+
+-- ── 14. Rutas más solicitadas (basado en 20,000 vuelos) ──────
+IF OBJECT_ID('dbo.vw_rutas_mas_solicitadas', 'V') IS NOT NULL
+    DROP VIEW dbo.vw_rutas_mas_solicitadas;
+GO
+CREATE VIEW dbo.vw_rutas_mas_solicitadas AS
+SELECT TOP 100
+    f.origin                                            AS Origen,
+    f.destination                                       AS Destino,
+    f.origin + ' → ' + f.destination                   AS Ruta,
+    COUNT(r.id)                                         AS Total_Reservas,
+    SUM(r.price_paid)                                   AS Ingresos_Ruta,
+    AVG(r.price_paid)                                   AS Precio_Prom,
+    COUNT(DISTINCT f.id)                                AS Vuelos_Disponibles
+FROM dbo.flights f
+LEFT JOIN dbo.reservations r
+    ON r.flight_id = f.id AND r.status = 'CONFIRMED'
+GROUP BY f.origin, f.destination
+ORDER BY COUNT(r.id) DESC;
+GO
+
+PRINT 'Vistas Power BI (todas 14) creadas correctamente en rpa_db.';
 GO

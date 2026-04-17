@@ -5,6 +5,7 @@ import RegionBanner from "./components/RegionBanner";
 import Home         from "./pages/Home";
 import Search       from "./pages/Search";
 import Booking      from "./pages/Booking";
+import FlightMap    from "./pages/FlightMap";
 import { getSystemStatus } from "./api";
 
 export default function App() {
@@ -21,11 +22,12 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-brand-light">
       <Navbar />
       <RegionBanner systemStatus={systemStatus} />
-      <div className="flex-1">
+      <div className="flex flex-col flex-1">
         <Routes>
           <Route path="/"            element={<Home />} />
           <Route path="/search"      element={<Search />} />
           <Route path="/booking/:id" element={<Booking />} />
+          <Route path="/flightmap"   element={<FlightMap />} />
         </Routes>
       </div>
     </div>

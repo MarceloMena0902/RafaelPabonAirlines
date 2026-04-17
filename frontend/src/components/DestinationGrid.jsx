@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 const DESTINATIONS = [
   {
     code: "DXB", city: "Dubái",     country: "EAU",
-    photo: "https://images.unsplash.com/photo-1512453015405-cde57e2fc359?w=400&h=520&fit=crop&q=80",
+    photo: "https://images.unsplash.com/photo-1582672060674-bc2bd808a8b5?w=400&h=520&fit=crop&q=80",
     price: "desde $850",
   },
   {
@@ -32,7 +32,7 @@ const DESTINATIONS = [
   },
   {
     code: "SAO", city: "São Paulo", country: "Brasil",
-    photo: "https://images.unsplash.com/photo-1544986581-efac5e28e8ae?w=400&h=520&fit=crop&q=80",
+    photo: "https://images.unsplash.com/photo-1543059080-f9b1272213d5?w=400&h=520&fit=crop&q=80",
     price: "desde $410",
   },
   {

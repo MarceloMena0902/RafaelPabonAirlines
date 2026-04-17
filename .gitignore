@@ -15,6 +15,10 @@ frontend/dist/
 # Datasets grandes (>100 MB — compartir manualmente)
 backend/data/datasets/pasajeros.csv
 
+# Context: conservar carpeta pero no los archivos grandes
+!backend/context/.gitkeep
+backend/context/*.csv
+
 # Logs y temporales
 *.log
 .DS_Store
