@@ -70,7 +70,12 @@ async def search_flights(
     filters = {}
     if origin:      filters["origin"]      = origin.upper()
     if destination: filters["destination"] = destination.upper()
-    if flight_date: filters["flight_date"] = flight_date
+    if flight_date:
+        filters["flight_date"] = flight_date
+    else:
+        # Sin fecha específica → solo mostrar vuelos de hoy en adelante
+        filters["min_date"]     = str(date.today())
+        filters["exclude_past"] = True
 
     for node in ("beijing", "ukraine"):
         if node_states[node].is_online:

@@ -230,7 +230,7 @@ def _transform_flights(df: pd.DataFrame, start_id: int) -> tuple[list[tuple], li
     for i, row in enumerate(df.itertuples(index=False), start=start_id):
         origin      = str(row.Origen).strip().upper()
         destination = str(row.Destino).strip().upper()
-        aircraft_id = (int(row.AvionId) - 1) % 4 + 1
+        aircraft_id = int(row.AvionId)          # preservar ID original 1-50
         aircraft    = AIRCRAFT[aircraft_type_for_id(aircraft_id)]
         price_eco   = float(PRICES_ECONOMY.get(origin, {}).get(destination) or 0)
         price_first = float(PRICES_FIRST.get(origin,   {}).get(destination) or 0)
@@ -407,6 +407,83 @@ def _write_passengers_parallel(
 
 
 # ══════════════════════════════════════════════════════════════
+#  Reparación de un nodo SQL específico (carga dedicada)
+# ══════════════════════════════════════════════════════════════
+
+def repair_sql_node_passengers(
+    datasets_path: Path,
+    node: str,
+    host: str,
+    port: int,
+) -> None:
+    """
+    Recarga pasajeros en UN solo nodo SQL Server desde cero.
+    Requiere que la tabla dbo.passengers esté vacía en ese nodo.
+    Usa fast_executemany=True (insert bulk directo, sin WHERE NOT EXISTS).
+    Hilo único — sin competencia con otros nodos.
+    """
+    global _processed_pax
+    _processed_pax = 0
+
+    csv_path = datasets_path / "pasajeros.csv"
+    logger.info("[repair/%s] Leyendo pasajeros: %s", node, csv_path)
+    total = sum(1 for _ in open(csv_path, encoding="utf-8")) - 1
+    logger.info("[repair/%s] Total filas en CSV: %d", node, total)
+
+    # Verificar que la tabla está vacía
+    conn_check = _sql_conn(host, port)
+    cur_check  = conn_check.cursor()
+    cur_check.execute("SELECT COUNT(*) FROM dbo.passengers")
+    existing = cur_check.fetchone()[0]
+    conn_check.close()
+    if existing > 0:
+        logger.error(
+            "[repair/%s] La tabla tiene %d registros. Trunca primero con:\n"
+            "  docker exec rpa_sqlserver_%s bash -c \"/opt/mssql-tools18/bin/sqlcmd "
+            "-S localhost,1433 -U sa -P 'RPA_StrongPass123!' -No -d rpa_db "
+            "-Q 'TRUNCATE TABLE dbo.passengers'\"",
+            node, existing, node,
+        )
+        return
+
+    seen: set[str] = set()
+    chunk_num = 0
+    inserted_total = 0
+
+    for chunk in pd.read_csv(csv_path, chunksize=CHUNK_PASSENGERS):
+        chunk_num += 1
+        chunk = chunk.drop_duplicates(subset=["Pasaporte"], keep="first")
+        chunk = chunk[~chunk["Pasaporte"].isin(seen)]
+        if chunk.empty:
+            continue
+        seen.update(chunk["Pasaporte"].tolist())
+
+        sql_rows, _ = _transform_passengers(chunk)
+        try:
+            conn = _sql_conn(host, port)
+            _sql_bulk(conn, _SQL_PASSENGERS, sql_rows)   # fast path: tabla vacía, sin duplicados
+            conn.close()
+            inserted_total += len(sql_rows)
+            logger.info("[repair/%s] chunk %d → +%d  (total: %d)",
+                        node, chunk_num, len(sql_rows), inserted_total)
+        except Exception as e:
+            logger.error("[repair/%s] chunk %d falló: %s", node, chunk_num, e)
+            # Reintentar con chunks más pequeños
+            sub_size = 10_000
+            for sub_start in range(0, len(sql_rows), sub_size):
+                sub = sql_rows[sub_start: sub_start + sub_size]
+                try:
+                    conn = _sql_conn(host, port)
+                    _sql_bulk(conn, _SQL_PASSENGERS, sub)
+                    conn.close()
+                    inserted_total += len(sub)
+                except Exception as sub_e:
+                    logger.error("[repair/%s] sub-chunk falló: %s", node, sub_e)
+
+    logger.info("[repair/%s] Reparación completa: %d pasajeros insertados.", node, inserted_total)
+
+
+# ══════════════════════════════════════════════════════════════
 #  Carga de vuelos
 # ══════════════════════════════════════════════════════════════
 
@@ -437,6 +514,45 @@ def load_flights(
         )
 
     logger.info("Vuelos cargados: %d en 3 nodos.", total)
+
+    # Actualizar estado: vuelos futuros → SCHEDULED
+    logger.info("Actualizando estado de vuelos futuros a SCHEDULED...")
+    def _fix_status_sql(node: str, host: str, port: int) -> None:
+        try:
+            conn = _sql_conn(host, port)
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE dbo.flights SET status = 'SCHEDULED' "
+                "WHERE flight_date > CAST(GETUTCDATE() AS DATE)"
+            )
+            rows = cur.rowcount
+            conn.commit()
+            conn.close()
+            logger.info("[%s] %d vuelos actualizados a SCHEDULED", node, rows)
+        except Exception as e:
+            logger.warning("[%s] error actualizando SCHEDULED: %s", node, e)
+
+    def _fix_status_mongo() -> None:
+        try:
+            from datetime import date as _d
+            cli, db = _mongo_db()
+            today = _d.today().isoformat()
+            result = db.flights.update_many(
+                {"flight_date": {"$gt": today}},
+                {"$set": {"status": "SCHEDULED"}},
+            )
+            cli.close()
+            logger.info("[lapaz] %d vuelos actualizados a SCHEDULED", result.modified_count)
+        except Exception as e:
+            logger.warning("[lapaz] error actualizando SCHEDULED: %s", e)
+
+    threads = [
+        threading.Thread(target=_fix_status_sql,   args=("beijing", bej_host, bej_port)),
+        threading.Thread(target=_fix_status_sql,   args=("ukraine", ukr_host, ukr_port)),
+        threading.Thread(target=_fix_status_mongo),
+    ]
+    for t in threads: t.start()
+    for t in threads: t.join()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -709,6 +825,7 @@ def main() -> None:
     parser.add_argument("--flights-only",    action="store_true", help="Solo carga vuelos (sin pasajeros)")
     parser.add_argument("--passengers-only", action="store_true", help="Solo carga pasajeros (vuelos ya cargados)")
     parser.add_argument("--verify",          action="store_true", help="Muestra conteos en los 3 nodos y sale")
+    parser.add_argument("--repair-ukraine",  action="store_true", help="Recarga pasajeros SOLO en Ukraine (tabla debe estar vacía)")
     args = parser.parse_args()
 
     if args.local:
@@ -724,6 +841,12 @@ def main() -> None:
     # ── Solo verificar ──────────────────────────────────────────
     if args.verify:
         verify_counts(bej_host, bej_port, ukr_host, ukr_port)
+        return
+
+    # ── Reparar solo Ukraine ─────────────────────────────────────
+    if args.repair_ukraine:
+        datasets_path = _find_datasets_path(args.path)
+        repair_sql_node_passengers(datasets_path, "ukraine", ukr_host, ukr_port)
         return
 
     datasets_path = _find_datasets_path(args.path)

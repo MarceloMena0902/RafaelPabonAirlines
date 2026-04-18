@@ -94,6 +94,11 @@ def get_flights(node: str, filters: dict | None = None) -> list[dict]:
         if "status" in filters:
             query += " AND status = ?"
             params.append(filters["status"])
+        if "min_date" in filters:
+            query += " AND flight_date >= ?"
+            params.append(filters["min_date"])
+        if filters.get("exclude_past"):
+            query += " AND status NOT IN ('ARRIVED', 'CANCELLED')"
 
     query += " ORDER BY flight_date, departure_time"
 

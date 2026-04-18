@@ -5,17 +5,23 @@ Algoritmos de selección de rutas:
 
   GET /routes/shortest   Dijkstra — ruta de menor costo entre 2 aeropuertos
   GET /routes/tour       TSP (Held-Karp DP) — tour óptimo multi-ciudad
+  GET /routes/suggest    Dijkstra + vuelos reales más cercanos a la fecha
+  GET /routes/airports   Lista de aeropuertos con rutas disponibles
 
 Usa las matrices de precios / tiempos de data/matrices.py como grafo.
 """
+import asyncio
 import heapq
 import math
+from datetime import date as dateclass
 from itertools import permutations
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
 from data.matrices import PRICES_ECONOMY, PRICES_FIRST, FLIGHT_HOURS
+from db import sqlserver, mongodb
+from sync.synchronizer import node_states
 
 router = APIRouter(prefix="/routes", tags=["Rutas"])
 
@@ -250,6 +256,116 @@ async def get_optimal_tour(
         if c not in AIRPORTS:
             raise HTTPException(400, f"Aeropuerto '{c}' no reconocido. Válidos: {AIRPORTS}")
     return tsp_held_karp(city_list, cabin.upper())
+
+
+async def _find_nearest_flight(origin: str, destination: str, target_date: str, cabin: str) -> dict | None:
+    """
+    Busca el vuelo disponible más cercano a target_date para el segmento dado.
+    Consulta SQL Server (Beijing → Ucrania) y luego MongoDB si es necesario.
+    """
+    try:
+        today_str = str(dateclass.today())
+        flights: list[dict] = []
+
+        for node in ("beijing", "ukraine"):
+            if node_states[node].is_online:
+                try:
+                    rows = await asyncio.to_thread(
+                        sqlserver.get_flights, node,
+                        {"origin": origin, "destination": destination, "min_date": today_str},
+                    )
+                    if rows:
+                        flights = rows
+                        break
+                except Exception:
+                    pass
+
+        if not flights and node_states["lapaz"].is_online:
+            try:
+                flights = await mongodb.get_flights(
+                    {"origin": origin, "destination": destination, "min_date": today_str}
+                )
+            except Exception:
+                pass
+
+        if not flights:
+            return None
+
+        # Ordenar por proximidad a target_date
+        try:
+            target = dateclass.fromisoformat(target_date)
+        except Exception:
+            target = dateclass.today()
+
+        def _day_diff(f: dict) -> int:
+            try:
+                fd = f.get("flight_date")
+                if hasattr(fd, "year"):
+                    return abs((fd - target).days)
+                return abs((dateclass.fromisoformat(str(fd)) - target).days)
+            except Exception:
+                return 9999
+
+        flights.sort(key=_day_diff)
+        f = flights[0]
+
+        avail = f.get("available_first" if cabin == "FIRST" else "available_economy", 0)
+        price = f.get("price_first"     if cabin == "FIRST" else "price_economy",     0)
+        dep   = f.get("departure_time", "")
+        dep_str = str(dep)[:5] if dep else ""
+
+        return {
+            "flight_id":      f.get("id"),
+            "flight_date":    str(f.get("flight_date", "")),
+            "departure_time": dep_str,
+            "duration_hours": f.get("duration_hours"),
+            "available":      avail,
+            "price":          price,
+            "aircraft_type":  f.get("aircraft_type", ""),
+            "node_owner":     f.get("node_owner", ""),
+            "gate":           f.get("gate", ""),
+        }
+    except Exception:
+        return None
+
+
+@router.get("/suggest")
+async def suggest_route(
+    origin:      str = Query(..., description="Código aeropuerto origen  (ej: ATL)"),
+    destination: str = Query(..., description="Código aeropuerto destino (ej: PEK)"),
+    date:        str = Query(..., description="Fecha deseada YYYY-MM-DD"),
+    cabin:       str = Query("ECONOMY", description="ECONOMY | FIRST"),
+):
+    """
+    Sugiere la ruta óptima multi-escala para la fecha indicada.
+
+    1. Corre Dijkstra sobre la matriz de precios para encontrar el camino de
+       menor costo.
+    2. Para cada segmento del camino busca el vuelo real en la BD que esté
+       disponible y sea el más cercano a la fecha solicitada.
+
+    Respuesta incluye: path, total_cost, total_hours, hops, requested_date,
+    y una lista de segments con el campo nearest_flight por cada tramo.
+    """
+    cabin_upper  = cabin.upper()
+    origin_upper = origin.upper()
+    dest_upper   = destination.upper()
+
+    route = dijkstra(origin_upper, dest_upper, cabin_upper)
+
+    # Enriquecer cada segmento con el vuelo real más cercano
+    enriched_segments = []
+    for seg in route["segments"]:
+        flight = await _find_nearest_flight(
+            seg["from"], seg["to"], date, cabin_upper
+        )
+        enriched_segments.append({**seg, "nearest_flight": flight})
+
+    return {
+        **route,
+        "requested_date": date,
+        "segments": enriched_segments,
+    }
 
 
 @router.get("/airports")

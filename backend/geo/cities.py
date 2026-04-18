@@ -288,6 +288,80 @@ def nearest_node_for_coords(lat: float, lon: float) -> str:
     return min(distances, key=distances.get)
 
 
+# Offsets UTC conocidos por ciudad (sin DST, valores para uso general)
+# Para April 2026 se incluyen offsets de verano/invierno según hemisferio
+CITY_UTC_OFFSETS: dict[str, int] = {
+    # Bolivia (BOT = UTC-4, sin DST)
+    "La Paz": -4, "Cochabamba": -4, "Santa Cruz": -4, "Sucre": -4,
+    # Sudamérica (sin DST en abril)
+    "Buenos Aires": -3, "Córdoba": -3, "Rosario": -3,
+    "São Paulo": -3, "Río de Janeiro": -3, "Brasília": -3,
+    "Salvador": -3, "Fortaleza": -3, "Manaus": -4, "Porto Alegre": -3,
+    "Bogotá": -5, "Medellín": -5, "Cali": -5,
+    "Lima": -5, "Arequipa": -5,
+    "Santiago": -4, "Valparaíso": -4,  # Chile: abril = UTC-4 (invierno)
+    "Caracas": -4, "Maracaibo": -4,
+    "Quito": -5, "Guayaquil": -5,
+    "Asunción": -4, "Montevideo": -3,
+    # Centroamérica / Caribe
+    "Ciudad de México": -5, "Guadalajara": -5, "Monterrey": -5, "Cancún": -5,
+    "Guatemala City": -6, "San José": -6, "Panamá": -5,
+    "La Habana": -4, "Santo Domingo": -4, "San Juan": -4, "Kingston": -5,
+    "Puerto Príncipe": -4,
+    # Norteamérica (abril = DST activo)
+    "Miami": -4, "Nueva York": -4, "Boston": -4, "Washington": -4,
+    "Atlanta": -4, "Chicago": -5, "Houston": -5, "Dallas": -5,
+    "Denver": -6, "Phoenix": -7, "Los Ángeles": -7, "San Francisco": -7,
+    "Seattle": -7, "Las Vegas": -7,
+    "Toronto": -4, "Montreal": -4, "Vancouver": -7, "Calgary": -6,
+    # Europa (abril = CEST/BST activo)
+    "Londres": 1, "Manchester": 1, "Birmingham": 1, "Glasgow": 1,
+    "París": 2, "Lyon": 2, "Marsella": 2,
+    "Berlín": 2, "Múnich": 2, "Hamburgo": 2, "Colonia": 2, "Fráncfort": 2,
+    "Madrid": 2, "Barcelona": 2, "Valencia": 2, "Sevilla": 2,
+    "Roma": 2, "Milán": 2, "Nápoles": 2,
+    "Ámsterdam": 2, "Bruselas": 2, "Luxemburgo": 2,
+    "Lisboa": 1, "Oporto": 1,
+    "Varsovia": 2, "Cracovia": 2,
+    "Praga": 2, "Budapest": 2, "Bucarest": 2,
+    "Estocolmo": 2, "Copenhague": 2, "Oslo": 2, "Helsinki": 3,
+    "Atenas": 3, "Sofía": 3,
+    "Berna": 2, "Zúrich": 2, "Viena": 2,
+    "Kiev": 3, "Kharkiv": 3, "Odesa": 3,
+    "Moscú": 3, "San Petersburgo": 3,
+    "Estambul": 3,
+    # Medio Oriente / África
+    "Dubái": 4, "Abu Dabi": 4,
+    "Riad": 3, "Jeddah": 3,
+    "Bagdad": 3, "Teherán": 3,
+    "Tel Aviv": 3, "Amán": 3, "Beirut": 3,
+    "El Cairo": 3, "Alejandría": 3,
+    "Casablanca": 1, "Rabat": 1,
+    "Lagos": 1, "Abuja": 1, "Accra": 0,
+    "Nairobi": 3, "Addis Abeba": 3,
+    "Johannesburgo": 2, "Ciudad del Cabo": 2,
+    "Dakar": 0, "Luanda": 1,
+    # Asia Central / Sur
+    "Karachi": 5, "Lahore": 5, "Islamabad": 5,
+    "Mumbai": 5, "Delhi": 5, "Bengaluru": 5, "Calcuta": 5, "Chennai": 5,
+    "Colombo": 5, "Dhaka": 6,
+    "Katmandú": 5, "Kabul": 4, "Taskent": 5, "Almaty": 5,
+    # Asia Oriental / Sudeste
+    "Pekín": 8, "Shanghái": 8, "Guangzhou": 8, "Chengdu": 8,
+    "Shenzhen": 8, "Wuhan": 8,
+    "Tokio": 9, "Osaka": 9, "Nagoya": 9,
+    "Seúl": 9, "Busan": 9,
+    "Hong Kong": 8, "Taipéi": 8,
+    "Singapur": 8, "Kuala Lumpur": 8,
+    "Bangkok": 7, "Ho Chi Minh": 7, "Hanói": 7,
+    "Yakarta": 7, "Manila": 8,
+    "Rangún": 6,
+    # Oceanía (abril = otoño → AEST +10)
+    "Sídney": 10, "Melbourne": 10, "Brisbane": 10,
+    "Perth": 8, "Auckland": 12,
+}
+
+
 def nearest_node_for_city(city_name: str) -> dict | None:
     """
     Dado un nombre de ciudad, devuelve:
@@ -301,5 +375,11 @@ def nearest_node_for_city(city_name: str) -> dict | None:
     node = nearest_node_for_coords(c["lat"], c["lon"])
     labels = {"beijing": "Pekín", "ukraine": "Ucrania", "lapaz": "La Paz"}
     flags  = {"beijing": "🇨🇳",   "ukraine": "🇺🇦",     "lapaz": "🇧🇴"}
+    # Usar offset conocido si existe, si no aproximar por longitud
+    if c["city"] in CITY_UTC_OFFSETS:
+        utc_offset = CITY_UTC_OFFSETS[c["city"]]
+    else:
+        utc_offset = round(c["lon"] / 15)
+        utc_offset = max(-12, min(14, utc_offset))
     return {**c, "node": node, "node_label": labels.get(node, node),
-            "node_flag": flags.get(node, "")}
+            "node_flag": flags.get(node, ""), "utc_offset": utc_offset}

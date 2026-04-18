@@ -15,4 +15,9 @@ export const getReservationsForFlight = (id) => api.get(`/reservations/flight/${
 export const getSeatsForFlight        = (id) => api.get(`/reservations/flight/${id}/seats`).then(r => r.data);
 export const getPassenger     = (passport) => api.get(`/passengers/${passport}`).then(r => r.data);
 
+export const getSuggestedRoute = (origin, destination, date, cabin = "ECONOMY") =>
+  api.get("/routes/suggest", { params: { origin, destination, date, cabin } }).then(r => r.data);
+
+export const getAnalyticsSummary = () => api.get("/analytics/summary").then(r => r.data);
+
 export default api;

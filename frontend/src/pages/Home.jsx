@@ -5,7 +5,7 @@ import CitySelector from "../components/CitySelector";
 import DestinationGrid from "../components/DestinationGrid";
 import useNodeMap from "../hooks/useNodeMap";
 
-const NODE_LABELS = { beijing: "Pekín", ukraine: "Ucrania", lapaz: "La Paz" };
+const NODE_LABEL_KEYS = { beijing: "search.node.beijing", ukraine: "search.node.ukraine", lapaz: "search.node.lapaz" };
 const NODE_ICONS  = { beijing: "🇨🇳", ukraine: "🇺🇦", lapaz: "🇧🇴" };
 
 export default function Home() {
@@ -56,7 +56,7 @@ export default function Home() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-24 md:py-32">
           <div className="max-w-xl">
             <p className="text-brand-gold font-semibold text-sm uppercase tracking-widest mb-3">
-              Sistema Distribuido CP · 3 Nodos
+              {t("home.cp_badge")}
             </p>
             <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight mb-4">
               {t("hero.title")}
@@ -68,7 +68,7 @@ export default function Home() {
               onClick={() => document.getElementById("search-widget")?.scrollIntoView({ behavior: "smooth" })}
               className="bg-brand-wine text-white font-semibold px-8 py-3 rounded-full hover:bg-brand-wine2 transition-colors"
             >
-              Reservar ahora
+              {t("home.book_now")}
             </button>
           </div>
         </div>
@@ -77,11 +77,11 @@ export default function Home() {
       {/* ── Widget de búsqueda ────────────────────────────────── */}
       <section id="search-widget" className="max-w-5xl mx-auto px-4 sm:px-6 -mt-8 relative z-10">
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Buscar vuelos</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-4">{t("home.search_title")}</h2>
 
           {/* Toggle tipo de viaje */}
           <div className="flex bg-gray-100 rounded-xl p-1 gap-1 mb-5 w-fit">
-            {[["oneway","Solo ida"],["roundtrip","Ida y vuelta"]].map(([val, label]) => (
+            {[["oneway", t("home.oneway")],["roundtrip", t("home.roundtrip")]].map(([val, label]) => (
               <button
                 key={val} type="button"
                 onClick={() => setTripType(val)}
@@ -100,19 +100,19 @@ export default function Home() {
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
                   {t("search.origin")}
                 </label>
-                <CitySelector value={origin} onChange={setOrigin} placeholder="Ciudad origen" />
+                <CitySelector value={origin} onChange={setOrigin} placeholder={t("home.placeholder_origin")} />
               </div>
               {/* Destino */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
                   {t("search.destination")}
                 </label>
-                <CitySelector value={dest} onChange={setDest} placeholder="Ciudad destino" />
+                <CitySelector value={dest} onChange={setDest} placeholder={t("home.placeholder_dest")} />
               </div>
               {/* Fecha ida */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                  {tripType === "roundtrip" ? "Fecha ida" : t("search.date")}
+                  {tripType === "roundtrip" ? t("home.date_out") : t("search.date")}
                 </label>
                 <input
                   type="date"
@@ -125,7 +125,7 @@ export default function Home() {
               {tripType === "roundtrip" && (
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                    Fecha regreso
+                    {t("home.date_ret")}
                   </label>
                   <input
                     type="date"
@@ -154,7 +154,7 @@ export default function Home() {
             {/* Panel de nodos involucrados */}
             {involvedNodes.length > 0 && (
               <div className="flex items-center gap-3 py-3 px-4 bg-gray-50 rounded-xl border border-gray-100 mb-2">
-                <span className="text-xs text-gray-500 font-medium shrink-0">Nodos activos:</span>
+                <span className="text-xs text-gray-500 font-medium shrink-0">{t("home.active_nodes")}</span>
                 <div className="flex gap-2 flex-wrap">
                   {involvedNodes.map((node) => {
                     const online = onlineOf(
@@ -170,9 +170,9 @@ export default function Home() {
                         }`}
                       >
                         <span className={`w-2 h-2 rounded-full ${online === false ? "bg-red-500" : "bg-green-500"}`} />
-                        {NODE_ICONS[node]} {NODE_LABELS[node]}
+                        {NODE_ICONS[node]} {t(NODE_LABEL_KEYS[node])}
                         <span className="font-normal opacity-70">
-                          {online === false ? "· CAÍDO" : "· online"}
+                          {online === false ? `· ${t("home.node_down")}` : `· ${t("home.node_online")}`}
                         </span>
                       </span>
                     );
@@ -201,18 +201,18 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
           <div>
             <div className="text-3xl font-bold text-brand-gold mb-2">CP</div>
-            <div className="font-semibold mb-1">Consistencia + Partición</div>
-            <div className="text-white/60 text-sm">Teorema CAP — disponibilidad sacrificada ante particiones de red</div>
+            <div className="font-semibold mb-1">{t("home.cp_title")}</div>
+            <div className="text-white/60 text-sm">{t("home.cp_desc")}</div>
           </div>
           <div>
             <div className="text-3xl font-bold text-brand-gold mb-2">VC</div>
-            <div className="font-semibold mb-1">Relojes Vectoriales</div>
-            <div className="text-white/60 text-sm">Cada reserva lleva un vector {"{beijing, ukraine, lapaz}"} para orden causal</div>
+            <div className="font-semibold mb-1">{t("home.vc_title")}</div>
+            <div className="text-white/60 text-sm">{t("home.vc_desc")}</div>
           </div>
           <div>
             <div className="text-3xl font-bold text-brand-gold mb-2">IKJ</div>
-            <div className="font-semibold mb-1">Identity Key Jumping</div>
-            <div className="text-white/60 text-sm">IDs únicos por nodo: 1B+ Pekín · 2B+ Ucrania · 3B+ La Paz</div>
+            <div className="font-semibold mb-1">{t("home.ikj_title")}</div>
+            <div className="text-white/60 text-sm">{t("home.ikj_desc")}</div>
           </div>
         </div>
       </section>

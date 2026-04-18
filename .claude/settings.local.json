@@ -39,7 +39,24 @@
       "Bash(xargs grep *)",
       "Bash(docker-compose -f \"E:/ISI trabajos/7moSem/Sistemas Distribuidos/Practica3/docker-compose.yml\" up -d --no-build rpa_backend)",
       "Bash(docker compose *)",
-      "Bash(echo \"Iniciado en background, PID=$!\")"
+      "Bash(echo \"Iniciado en background, PID=$!\")",
+      "Bash(docker start *)",
+      "Bash(docker volume *)",
+      "Bash(docker run *)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'Total flights: {len\\(d\\)}'\\); [print\\(f'  {f[\\\\\"flight_date\\\\\"]} {f[\\\\\"origin\\\\\"]}→{f[\\\\\"destination\\\\\"]} status={f[\\\\\"status\\\\\"]}'\\) for f in d[:3]]\")",
+      "Bash(docker stop *)",
+      "Read(//tmp/**)",
+      "Bash(taskkill *)",
+      "Bash(powershell -Command \"Restart-Service com.docker.service -Force\")",
+      "Bash(powershell -Command \"& 'C:\\\\Program Files\\\\Docker\\\\Docker\\\\DockerCli.exe' -SwitchDaemon\")",
+      "Bash(powershell -Command \"Get-Process 'Docker Desktop' | Restart-Process\")",
+      "Bash(powershell *)",
+      "Bash(docker version *)",
+      "Bash(python3 -m json.tool)",
+      "Bash(DOCKER_API_VERSION=1.45 docker ps)",
+      "Bash(powershell.exe -Command \"Invoke-RestMethod -Uri 'npipe://./pipe/dockerDesktopLinuxEngine/version'\")",
+      "Bash(powershell.exe -Command \"netstat -an | Select-String '8000|3000'\")",
+      "Bash(powershell.exe *)"
     ]
   }
 }

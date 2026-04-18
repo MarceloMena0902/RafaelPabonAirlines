@@ -92,6 +92,8 @@ class ReservationRequest(BaseModel):
     passenger_passport: str
     seat_number:        str
     cabin_class:        str    # ECONOMY | FIRST
+    status:             Optional[str] = "CONFIRMED"  # CONFIRMED | RESERVED
+    buyer_node:         Optional[str] = None  # nodo desde donde compra el usuario
 
     @field_validator("cabin_class")
     @classmethod

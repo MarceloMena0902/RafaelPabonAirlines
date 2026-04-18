@@ -49,18 +49,16 @@ async def _get_flight(flight_id: int) -> dict:
 
 @router.post("/", response_model=ReservationResponse, status_code=201)
 async def create_reservation(req: ReservationRequest):
-    flight  = await _get_flight(req.flight_id)
-    offline = get_offline_nodes()
-    blocked = set(blocked_airports(offline))
+    flight = await _get_flight(req.flight_id)
 
-    for airport in (flight["origin"], flight["destination"]):
-        if airport in blocked:
-            node = node_for_airport(airport)
+    # Verificar si el nodo del comprador está caído.
+    # Los aeropuertos del vuelo NO se bloquean — solo el nodo desde donde compra.
+    if req.buyer_node and req.buyer_node in node_states:
+        if not node_states[req.buyer_node].is_online:
             raise HTTPException(status_code=503, detail={
-                "message":          "No se pueden realizar compras para esta ruta.",
-                "reason":           f"El nodo regional '{node}' no está disponible.",
-                "affected_airport": airport,
-                "blocked_airports": list(blocked),
+                "message": "Tu nodo regional no está disponible para compras en este momento.",
+                "reason":  f"El nodo '{req.buyer_node}' está fuera de línea.",
+                "node":    req.buyer_node,
             })
 
     field = "available_first" if req.cabin_class == "FIRST" else "available_economy"
@@ -77,6 +75,8 @@ async def create_reservation(req: ReservationRequest):
     current_vc = node_states[serving_node].vector_clock
     new_vc     = current_vc.tick(serving_node)
 
+    reservation_status = req.status if req.status in ("CONFIRMED", "RESERVED") else "CONFIRMED"
+
     data = {
         "id":                 reservation_id,
         "transaction_id":     transaction_id,
@@ -84,7 +84,7 @@ async def create_reservation(req: ReservationRequest):
         "passenger_passport": req.passenger_passport,
         "seat_number":        req.seat_number,
         "cabin_class":        req.cabin_class,
-        "status":             "CONFIRMED",
+        "status":             reservation_status,
         "price_paid":         price,
         "node_origin":        serving_node,
         "vector_clock":       new_vc.to_json(),

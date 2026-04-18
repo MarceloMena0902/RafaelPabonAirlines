@@ -22,15 +22,18 @@
  *   lookupPassport(passport) → Promise<{ full_name } | null>
  */
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 // ── Configuraciones por tipo de aeronave ──────────────────────
+// A380 y B777: primera clase 10 asientos (2 por fila × 5 filas = pod layout)
+// A350 y B787: primera clase 12/8 asientos (3+1 layout)
 const CONFIGS = {
   A380: {
-    firstGroups: [["A","B"], ["C","D"]],
+    firstGroups: [["A"], ["B"]],       // 2 seats/row × 5 rows = 10 first class
     ecoGroups:   [["A","B","C"], ["D","E","F","G"], ["H","J","K"]],
   },
   B777: {
-    firstGroups: [["A","B"], ["C","D"]],
+    firstGroups: [["A"], ["B"]],       // 2 seats/row × 5 rows = 10 first class
     ecoGroups:   [["A","B","C"], ["D","E","F"], ["G","H","J"]],
   },
   A350: {
@@ -66,6 +69,7 @@ function seatClasses(status, isSelected, isWrongCabin) {
 
 // ── Popup de asiento ──────────────────────────────────────────
 function SeatPopup({ seatId, info, cabinClass, onClose, onBuy, onReserve, lookupPassport }) {
+  const { t } = useTranslation();
   const [passport,  setPassport]  = useState(info?.passenger_passport || "");
   const [paxName,   setPaxName]   = useState(info?.passenger_name     || "");
   const [looking,   setLooking]   = useState(false);
@@ -76,9 +80,9 @@ function SeatPopup({ seatId, info, cabinClass, onClose, onBuy, onReserve, lookup
   const status     = info?.status || "LIBRE";
 
   const statusLabel = {
-    CONFIRMED: "Vendido",
-    RESERVED:  "Reservado",
-    LIBRE:     "Libre",
+    CONFIRMED: t("seatmap.sold"),
+    RESERVED:  t("seatmap.reserved"),
+    LIBRE:     t("seatmap.free"),
   }[status] || status;
 
   const statusColor = {
@@ -125,23 +129,23 @@ function SeatPopup({ seatId, info, cabinClass, onClose, onBuy, onReserve, lookup
 
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <span className="font-bold text-gray-800 text-sm">Asiento: <span className="text-brand-wine">{seatId}</span></span>
+        <span className="font-bold text-gray-800 text-sm">{t("seatmap.seat")}: <span className="text-brand-wine">{seatId}</span></span>
         <button onClick={onClose}
           className="text-gray-400 hover:text-gray-700 text-lg leading-none font-bold">×</button>
       </div>
 
       {/* Estado */}
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-xs text-gray-500">Estado:</span>
+        <span className="text-xs text-gray-500">{t("seatmap.status")}:</span>
         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColor}`}>
           {statusLabel}
         </span>
-        <span className="text-xs text-gray-400">{cabinClass === "FIRST" ? "1ª Clase" : "Económica"}</span>
+        <span className="text-xs text-gray-400">{cabinClass === "FIRST" ? t("seatmap.first") : t("seatmap.economy")}</span>
       </div>
 
       {/* Pasaporte */}
       <div className="mb-2">
-        <label className="text-xs text-gray-500 block mb-1">Pasaporte:</label>
+        <label className="text-xs text-gray-500 block mb-1">{t("seatmap.passport")}:</label>
         {isOccupied ? (
           <div className="font-mono text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
             {info.passenger_passport}
@@ -160,18 +164,18 @@ function SeatPopup({ seatId, info, cabinClass, onClose, onBuy, onReserve, lookup
       {/* Nombre pasajero */}
       <div className="mb-4">
         <label className="text-xs text-gray-500 block mb-1">
-          Pasajero:{looking && <span className="text-gray-400 ml-1">(buscando...)</span>}
+          {t("seatmap.passenger")}:{looking && <span className="text-gray-400 ml-1">({t("seatmap.looking")})</span>}
         </label>
         {isOccupied ? (
           <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-            {info.passenger_name || <span className="text-gray-400 italic">Sin nombre registrado</span>}
+            {info.passenger_name || <span className="text-gray-400 italic">{t("seatmap.no_name")}</span>}
           </div>
         ) : (
           <input
             type="text"
             value={paxName}
             onChange={e => setPaxName(e.target.value)}
-            placeholder="Nombre completo"
+            placeholder={t("seatmap.full_name")}
             className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-wine"
           />
         )}
@@ -185,32 +189,32 @@ function SeatPopup({ seatId, info, cabinClass, onClose, onBuy, onReserve, lookup
             onClick={() => handleAction("buy")}
             className="flex-1 bg-green-600 text-white text-sm font-semibold py-2 rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            Comprar
+            {t("seatmap.buy")}
           </button>
           <button
             disabled={!canAct || submitting}
             onClick={() => handleAction("reserve")}
             className="flex-1 bg-amber-500 text-white text-sm font-semibold py-2 rounded-lg hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            Reservar
+            {t("seatmap.reserve")}
           </button>
         </div>
       )}
 
       {isOccupied && status === "RESERVED" && (
         <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
-          Reservado — pendiente de compra
+          {t("seatmap.pending_purchase")}
         </p>
       )}
       {isOccupied && status === "CONFIRMED" && (
         <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-center">
-          Asiento vendido
+          {t("seatmap.sold_msg")}
         </p>
       )}
 
       {!canAct && !isOccupied && (
         <p className="text-xs text-gray-400 mt-2 text-center">
-          Ingresa el pasaporte para continuar
+          {t("seatmap.enter_passport")}
         </p>
       )}
     </div>
@@ -241,6 +245,7 @@ export default function SeatMap({
   onReserve,
   lookupPassport,
 }) {
+  const { t } = useTranslation();
   const [popup, setPopup] = useState(null); // seatId | null
 
   if (!aircraft) return null;
@@ -292,19 +297,19 @@ export default function SeatMap({
       <div className="flex gap-3 text-[10px] text-gray-500 mb-3 flex-wrap">
         <span className="flex items-center gap-1">
           <span className="w-4 h-4 rounded-t-md bg-blue-200 border-b-2 border-blue-400 inline-block" />
-          Libre
+          {t("seatmap.free")}
         </span>
         <span className="flex items-center gap-1">
           <span className="w-4 h-4 rounded-t-md bg-amber-400 border-b-2 border-amber-600 inline-block" />
-          Reservado
+          {t("seatmap.reserved")}
         </span>
         <span className="flex items-center gap-1">
           <span className="w-4 h-4 rounded-t-md bg-green-500 border-b-2 border-green-700 inline-block" />
-          Vendido
+          {t("seatmap.sold")}
         </span>
         <span className="flex items-center gap-1">
           <span className="w-4 h-4 rounded-t-md bg-brand-wine border-b-2 border-brand-wine2 inline-block" />
-          Seleccionado
+          {t("seatmap.selected")}
         </span>
       </div>
 

@@ -40,7 +40,7 @@ class IKJGenerator:
         self.node        = node_name
         self._offset     = self.OFFSETS[node_name]
         self._prefix     = self.PREFIXES[node_name]
-        self._counter    = 0
+        self._counter    = 13_000_000
         self._lock       = asyncio.Lock()
 
     async def next_reservation_id(self) -> int:

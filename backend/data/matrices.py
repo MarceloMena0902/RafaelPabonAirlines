@@ -14,43 +14,45 @@ y para validar transacciones.
 #  Lectura: PRICES_ECONOMY[origen][destino] → precio en USD
 #  None = no existe vuelo directo entre ese par
 # =============================================================
+# Matriz actualizada (más rutas directas eliminadas → fuerza Dijkstra con escalas)
 PRICES_ECONOMY: dict[str, dict[str, int | None]] = {
-    "ATL": {"PEK":None,"DXB":None,"TYO":1400,"LON":None,"LAX":400, "PAR":None,"FRA":800, "IST":None,"SIN":1500,"MAD":800, "AMS":800, "DFW":200, "CAN":None,"SAO":900 },
-    "PEK": {"ATL":None,"DXB":700, "TYO":500, "LON":900, "LAX":950, "PAR":None,"FRA":None,"IST":600, "SIN":950, "MAD":900, "AMS":1150,"DFW":None,"CAN":200, "SAO":1700},
-    "DXB": {"ATL":None,"PEK":700, "TYO":750, "LON":650, "LAX":1300,"PAR":700, "FRA":600, "IST":400, "SIN":600, "MAD":None,"AMS":650, "DFW":1200,"CAN":650, "SAO":1400},
-    "TYO": {"ATL":1400,"PEK":500, "DXB":750, "LON":1000,"LAX":900, "PAR":105, "FRA":None,"IST":900, "SIN":700, "MAD":1100,"AMS":None,"DFW":1350,"CAN":550, "SAO":None},
-    "LON": {"ATL":700, "PEK":900, "DXB":650, "TYO":1000,"LAX":800, "PAR":150, "FRA":200, "IST":400, "SIN":None,"MAD":200, "AMS":150, "DFW":None,"CAN":950, "SAO":1100},
-    "LAX": {"ATL":400, "PEK":1100,"DXB":1300,"TYO":900, "LON":None,"PAR":850, "FRA":900, "IST":1100,"SIN":1400,"MAD":None,"AMS":850, "DFW":300, "CAN":None,"SAO":None},
-    "PAR": {"ATL":750, "PEK":None,"DXB":700, "TYO":1050,"LON":150, "LAX":850, "FRA":7000,"IST":350, "SIN":900, "MAD":200, "AMS":180, "DFW":None,"CAN":1150,"SAO":1050},
-    "FRA": {"ATL":None,"PEK":None,"DXB":850, "TYO":950, "LON":200, "LAX":900, "PAR":150, "IST":350, "SIN":None,"MAD":900, "AMS":None,"DFW":None,"CAN":None,"SAO":None},
-    "IST": {"ATL":None,"PEK":800, "DXB":400, "TYO":900, "LON":None,"LAX":2999,"PAR":None,"FRA":350, "SIN":800, "MAD":500, "AMS":450, "DFW":1000,"CAN":800, "SAO":1200},
-    "SIN": {"ATL":None,"PEK":600, "DXB":None,"TYO":700, "LON":900, "LAX":None,"PAR":None,"FRA":None,"IST":800, "MAD":1000,"AMS":None,"DFW":1400,"CAN":None,"SAO":None},
-    "MAD": {"ATL":None,"PEK":900, "DXB":None,"TYO":750, "LON":200, "LAX":900, "PAR":200, "FRA":250, "IST":500, "SIN":1000,"AMS":200, "DFW":850, "CAN":None,"SAO":1000},
-    "AMS": {"ATL":780, "PEK":900, "DXB":650, "TYO":1000,"LON":150, "LAX":850, "PAR":None,"FRA":450, "IST":950, "SIN":None,"MAD":200, "DFW":800, "CAN":900, "SAO":1050},
-    "DFW": {"ATL":200, "PEK":None,"DXB":1200,"TYO":1350,"LON":None,"LAX":300, "PAR":800, "FRA":1000,"IST":None,"SIN":1400,"MAD":850, "AMS":800, "CAN":1200,"SAO":950 },
-    "CAN": {"ATL":None,"PEK":200, "DXB":650, "TYO":550, "LON":950, "LAX":950, "PAR":1150,"FRA":None,"IST":800, "SIN":500, "MAD":None,"AMS":900, "DFW":1200,"SAO":1700},
-    "SAO": {"ATL":900, "PEK":1700,"DXB":1400,"TYO":None,"LON":1100,"LAX":None,"PAR":1050,"FRA":None,"IST":1200,"SIN":None,"MAD":1000,"AMS":1050,"DFW":950, "CAN":1700},
+    "ATL": {"PEK":None,"DXB":None,"TYO":None,"LON":1400,"LAX":400, "PAR":None,"FRA":800, "IST":None,"SIN":None,"MAD":800, "AMS":None,"DFW":200, "CAN":None,"SAO":900 },
+    "PEK": {"ATL":None,"DXB":700, "TYO":500, "LON":900, "LAX":None,"PAR":950, "FRA":None,"IST":None,"SIN":600, "MAD":950, "AMS":900, "DFW":None,"CAN":None,"SAO":None},
+    "DXB": {"ATL":None,"PEK":700, "TYO":None,"LON":None,"LAX":None,"PAR":None,"FRA":None,"IST":None,"SIN":None,"MAD":None,"AMS":1200,"DFW":None,"CAN":None,"SAO":1400},
+    "TYO": {"ATL":1400,"PEK":500, "DXB":None,"LON":None,"LAX":None,"PAR":None,"FRA":None,"IST":None,"SIN":None,"MAD":None,"AMS":None,"DFW":None,"CAN":None,"SAO":1100},
+    "LON": {"ATL":None,"PEK":None,"DXB":650, "TYO":None,"LAX":800, "PAR":150, "FRA":400, "IST":None,"SIN":None,"MAD":200, "AMS":150, "DFW":None,"CAN":None,"SAO":1100},
+    "LAX": {"ATL":None,"PEK":None,"DXB":None,"TYO":900, "LON":None,"PAR":850, "FRA":900, "IST":1100,"SIN":1400,"MAD":None,"AMS":850, "DFW":300, "CAN":None,"SAO":None},
+    "PAR": {"ATL":750, "PEK":None,"DXB":None,"TYO":None,"LON":None,"LAX":850, "FRA":None,"IST":950, "SIN":None,"MAD":200, "AMS":180, "DFW":None,"CAN":None,"SAO":1050},
+    "FRA": {"ATL":None,"PEK":None,"DXB":None,"TYO":950, "LON":200, "LAX":900, "PAR":150, "IST":350, "SIN":None,"MAD":None,"AMS":None,"DFW":850, "CAN":None,"SAO":None},
+    "IST": {"ATL":None,"PEK":None,"DXB":None,"TYO":900, "LON":None,"LAX":2999,"PAR":None,"FRA":350, "SIN":800, "MAD":500, "AMS":450, "DFW":None,"CAN":None,"SAO":1200},
+    "SIN": {"ATL":None,"PEK":None,"DXB":None,"TYO":700, "LON":900, "LAX":950, "PAR":None,"FRA":None,"IST":800, "MAD":None,"AMS":None,"DFW":None,"CAN":None,"SAO":None},
+    "MAD": {"ATL":None,"PEK":None,"DXB":None,"TYO":None,"LON":200, "LAX":900, "PAR":200, "FRA":250, "IST":500, "SIN":None,"AMS":200, "DFW":None,"CAN":None,"SAO":1000},
+    "AMS": {"ATL":780, "PEK":None,"DXB":None,"TYO":1000,"LON":150, "LAX":None,"PAR":None,"FRA":None,"IST":450, "SIN":None,"MAD":200, "DFW":800, "CAN":None,"SAO":None},
+    "DFW": {"ATL":200, "PEK":None,"DXB":None,"TYO":None,"LON":None,"LAX":300, "PAR":800, "FRA":None,"IST":None,"SIN":None,"MAD":850, "AMS":800, "CAN":1200,"SAO":950 },
+    "CAN": {"ATL":None,"PEK":None,"DXB":None,"TYO":550, "LON":None,"LAX":None,"PAR":None,"FRA":None,"IST":None,"SIN":None,"MAD":None,"AMS":900, "DFW":None,"SAO":1700},
+    "SAO": {"ATL":900, "PEK":None,"DXB":None,"TYO":None,"LON":None,"LAX":None,"PAR":None,"FRA":None,"IST":None,"SIN":None,"MAD":None,"AMS":950, "DFW":None,"CAN":None},
 }
 
 # =============================================================
 #  Precios Primera Clase (USD)
 # =============================================================
+# Primera clase: mismas rutas que económica, precio ×1.35
 PRICES_FIRST: dict[str, dict[str, int | None]] = {
-    "ATL": {"PEK":None,"DXB":None,"TYO":1890,"LON":None,"LAX":540, "PAR":None,"FRA":1080,"IST":None,"SIN":2025,"MAD":1080,"AMS":1080,"DFW":270, "CAN":None,"SAO":1215},
-    "PEK": {"ATL":None,"DXB":945, "TYO":675, "LON":1215,"LAX":1283,"PAR":None,"FRA":None,"IST":810, "SIN":1283,"MAD":1215,"AMS":1553,"DFW":None,"CAN":0,   "SAO":2295},
-    "DXB": {"ATL":None,"PEK":945, "TYO":1013,"LON":878, "LAX":1755,"PAR":945, "FRA":810, "IST":540, "SIN":810, "MAD":None,"AMS":878, "DFW":1620,"CAN":0,   "SAO":1890},
-    "TYO": {"ATL":1890,"PEK":675, "DXB":1013,"LON":1350,"LAX":1215,"PAR":142, "FRA":None,"IST":1215,"SIN":945, "MAD":1485,"AMS":None,"DFW":1823,"CAN":0,   "SAO":None},
-    "LON": {"ATL":945, "PEK":1215,"DXB":878, "TYO":1350,"LAX":1080,"PAR":203, "FRA":0,   "IST":540, "SIN":None,"MAD":270, "AMS":203, "DFW":None,"CAN":0,   "SAO":1485},
-    "LAX": {"ATL":540, "PEK":1485,"DXB":1755,"TYO":1215,"LON":None,"PAR":1148,"FRA":1215,"IST":1485,"SIN":1890,"MAD":None,"AMS":1148,"DFW":405, "CAN":None,"SAO":None},
-    "PAR": {"ATL":1013,"PEK":None,"DXB":945, "TYO":0,   "LON":203, "LAX":1148,"FRA":9450,"IST":0,   "SIN":1283,"MAD":270, "AMS":243, "DFW":None,"CAN":1283,"SAO":1418},
-    "FRA": {"ATL":None,"PEK":None,"DXB":0,   "TYO":1283,"LON":270, "LAX":1215,"PAR":203, "IST":473, "SIN":1215,"MAD":0,   "AMS":0,   "DFW":1148,"CAN":None,"SAO":None},
-    "IST": {"ATL":None,"PEK":1080,"DXB":540, "TYO":1215,"LON":None,"LAX":4049,"PAR":None,"FRA":473, "SIN":1080,"MAD":675, "AMS":608, "DFW":1350,"CAN":1080,"SAO":1620},
-    "SIN": {"ATL":None,"PEK":810, "DXB":None,"TYO":945, "LON":1215,"LAX":None,"PAR":None,"FRA":None,"IST":1080,"MAD":1350,"AMS":None,"DFW":1890,"CAN":None,"SAO":None},
-    "MAD": {"ATL":None,"PEK":1215,"DXB":None,"TYO":1013,"LON":270, "LAX":1215,"PAR":270, "FRA":338, "IST":675, "SIN":1350,"AMS":270, "DFW":1148,"CAN":None,"SAO":1350},
-    "AMS": {"ATL":1053,"PEK":1215,"DXB":878, "TYO":1350,"LON":203, "LAX":1148,"PAR":None,"FRA":0,   "IST":608, "SIN":None,"MAD":0,   "DFW":1080,"CAN":1215,"SAO":1418},
-    "DFW": {"ATL":270, "PEK":None,"DXB":1620,"TYO":0,   "LON":None,"LAX":405, "PAR":1080,"FRA":1148,"IST":None,"SIN":0,   "MAD":1148,"AMS":1080,"CAN":1620,"SAO":1283},
-    "CAN": {"ATL":None,"PEK":0,   "DXB":0,   "TYO":0,   "LON":0,   "LAX":1553,"PAR":1283,"FRA":None,"IST":1080,"SIN":675, "MAD":None,"AMS":1215,"DFW":1620,"SAO":2295},
-    "SAO": {"ATL":1215,"PEK":2295,"DXB":1890,"TYO":None,"LON":1485,"LAX":None,"PAR":0,   "FRA":None,"IST":1620,"SIN":None,"MAD":1350,"AMS":1418,"DFW":1283,"CAN":2295},
+    "ATL": {"PEK":None,"DXB":None,"TYO":None,"LON":1890,"LAX":540, "PAR":None,"FRA":1080,"IST":None,"SIN":None,"MAD":1080,"AMS":None,"DFW":270, "CAN":None,"SAO":1215},
+    "PEK": {"ATL":None,"DXB":945, "TYO":675, "LON":1215,"LAX":None,"PAR":1283,"FRA":None,"IST":None,"SIN":810, "MAD":1283,"AMS":1215,"DFW":None,"CAN":None,"SAO":None},
+    "DXB": {"ATL":None,"PEK":945, "TYO":None,"LON":None,"LAX":None,"PAR":None,"FRA":None,"IST":None,"SIN":None,"MAD":None,"AMS":1620,"DFW":None,"CAN":None,"SAO":1890},
+    "TYO": {"ATL":1890,"PEK":675, "DXB":None,"LON":None,"LAX":None,"PAR":None,"FRA":None,"IST":None,"SIN":None,"MAD":None,"AMS":None,"DFW":None,"CAN":None,"SAO":1485},
+    "LON": {"ATL":None,"PEK":None,"DXB":878, "TYO":None,"LAX":1080,"PAR":203, "FRA":540, "IST":None,"SIN":None,"MAD":270, "AMS":203, "DFW":None,"CAN":None,"SAO":1485},
+    "LAX": {"ATL":None,"PEK":None,"DXB":None,"TYO":1215,"LON":None,"PAR":1148,"FRA":1215,"IST":1485,"SIN":1890,"MAD":None,"AMS":1148,"DFW":405, "CAN":None,"SAO":None},
+    "PAR": {"ATL":1013,"PEK":None,"DXB":None,"TYO":None,"LON":None,"LAX":1148,"FRA":None,"IST":1283,"SIN":None,"MAD":270, "AMS":243, "DFW":None,"CAN":None,"SAO":1418},
+    "FRA": {"ATL":None,"PEK":None,"DXB":None,"TYO":1283,"LON":270, "LAX":1215,"PAR":203, "IST":473, "SIN":None,"MAD":None,"AMS":None,"DFW":1148,"CAN":None,"SAO":None},
+    "IST": {"ATL":None,"PEK":None,"DXB":None,"TYO":1215,"LON":None,"LAX":4049,"PAR":None,"FRA":473, "SIN":1080,"MAD":675, "AMS":608, "DFW":None,"CAN":None,"SAO":1620},
+    "SIN": {"ATL":None,"PEK":None,"DXB":None,"TYO":945, "LON":1215,"LAX":1283,"PAR":None,"FRA":None,"IST":1080,"MAD":None,"AMS":None,"DFW":None,"CAN":None,"SAO":None},
+    "MAD": {"ATL":None,"PEK":None,"DXB":None,"TYO":None,"LON":270, "LAX":1215,"PAR":270, "FRA":338, "IST":675, "SIN":None,"AMS":270, "DFW":None,"CAN":None,"SAO":1350},
+    "AMS": {"ATL":1053,"PEK":None,"DXB":None,"TYO":1350,"LON":203, "LAX":None,"PAR":None,"FRA":None,"IST":608, "SIN":None,"MAD":270, "DFW":1080,"CAN":None,"SAO":None},
+    "DFW": {"ATL":270, "PEK":None,"DXB":None,"TYO":None,"LON":None,"LAX":405, "PAR":1080,"FRA":None,"IST":None,"SIN":None,"MAD":1148,"AMS":1080,"CAN":1620,"SAO":1283},
+    "CAN": {"ATL":None,"PEK":None,"DXB":None,"TYO":743, "LON":None,"LAX":None,"PAR":None,"FRA":None,"IST":None,"SIN":None,"MAD":None,"AMS":1215,"DFW":None,"SAO":2295},
+    "SAO": {"ATL":1215,"PEK":None,"DXB":None,"TYO":None,"LON":None,"LAX":None,"PAR":None,"FRA":None,"IST":None,"SIN":None,"MAD":None,"AMS":1283,"DFW":None,"CAN":None},
 }
 
 # =============================================================
@@ -109,6 +111,9 @@ AIRCRAFT: dict[str, dict] = {
 }
 
 # Mapeo rápido avion_id (CSV) → tipo de aeronave
-# avion_id va de 1 a 50; se distribuye entre los 4 modelos
+# Flota real: 6 A380 (IDs 1-6), 18 B777 (7-24), 11 A350 (25-35), 15 B787 (36-50)
 def aircraft_type_for_id(avion_id: int) -> str:
-    return ["A380", "B777", "A350", "B787"][(avion_id - 1) % 4]
+    if avion_id <= 6:    return "A380"
+    elif avion_id <= 24: return "B777"
+    elif avion_id <= 35: return "A350"
+    else:                return "B787"

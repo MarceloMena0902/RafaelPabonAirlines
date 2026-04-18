@@ -68,6 +68,13 @@ async def get_flights(filters: dict | None = None) -> list[dict]:
             query["flight_date"] = filters["flight_date"]
         if "status" in filters:
             query["status"] = filters["status"]
+        if "min_date" in filters:
+            if "flight_date" in query:
+                pass  # exact date takes precedence
+            else:
+                query["flight_date"] = {"$gte": filters["min_date"]}
+        if filters.get("exclude_past"):
+            query["status"] = {"$nin": ["ARRIVED", "CANCELLED"]}
 
     cursor = db.flights.find(query, {"_id": 0}).sort([("flight_date", 1), ("departure_time", 1)])
     return await cursor.to_list(length=None)

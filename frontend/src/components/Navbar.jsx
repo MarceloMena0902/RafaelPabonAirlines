@@ -17,9 +17,10 @@ const LANGS = [
 ];
 
 const NAV_LINKS = [
-  { to: "/",          key: "nav.home" },
-  { to: "/search",    key: "nav.flights" },
-  { to: "/flightmap", key: "nav.flightmap", icon: "✈" },
+  { to: "/",           key: "nav.home" },
+  { to: "/search",     key: "nav.flights" },
+  { to: "/flightmap",  key: "nav.flightmap" },
+  { to: "/dashboard",  key: "nav.dashboard" },
 ];
 
 export default function Navbar() {

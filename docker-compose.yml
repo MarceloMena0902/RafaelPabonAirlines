@@ -64,6 +64,10 @@ services:
   mongodb_lapaz:
     image: mongo:7
     container_name: rpa_mongodb_lapaz
+    command: >
+      mongod
+      --wiredTigerCacheSizeGB 1
+      --setParameter diagnosticDataCollectionEnabled=0
     environment:
       MONGO_INITDB_ROOT_USERNAME: rpa_admin
       MONGO_INITDB_ROOT_PASSWORD: "RPA_MongoPass123!"
